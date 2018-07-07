@@ -3,3 +3,9 @@
 ################################################################################
 
 /.vs/RaytracerCuda/v15
+/Raytracer/x64/Debug
+/Raytracer/x64/Release
+/TestProgram/x64/Debug
+/TestProgram/x64/Release
+/x64/Release/Images
+/x64/Release/Shaders

@@ -1,0 +1,113 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Intern">
+      <UniqueIdentifier>{93096f62-cef0-49a6-9b6f-e869b487e4f3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Cuda">
+      <UniqueIdentifier>{b7fda1a3-73f7-4f36-a441-f3f45cc40bd8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Intern\Gradient">
+      <UniqueIdentifier>{de0823cc-5669-4e1e-8de5-bb3e2be54a68}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Intern\Blob">
+      <UniqueIdentifier>{0ad71143-8e64-4529-a0b4-4917bb33357b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Intern\Util">
+      <UniqueIdentifier>{8f443f9b-dbc8-43e9-bb43-428814afdc9e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Intern\Main">
+      <UniqueIdentifier>{c396c268-f8b1-499e-93a8-9bb356b60a24}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Intern\Main\GPU">
+      <UniqueIdentifier>{1edc9c88-f66a-43b6-b0ec-6cd0fb1f4ed1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="CudaHelp.h">
+      <Filter>Cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="Beam.h" />
+    <ClInclude Include="Types.h" />
+    <ClInclude Include="Gradient.h">
+      <Filter>Intern\Gradient</Filter>
+    </ClInclude>
+    <ClInclude Include="Blob.h">
+      <Filter>Intern\Blob</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene.h">
+      <Filter>Intern\Main</Filter>
+    </ClInclude>
+    <ClInclude Include="Mesh.h">
+      <Filter>Intern\Main</Filter>
+    </ClInclude>
+    <ClInclude Include="Camera.h">
+      <Filter>Intern\Main</Filter>
+    </ClInclude>
+    <ClInclude Include="DeviceBuffer.h">
+      <Filter>Intern\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="Util.h">
+      <Filter>Intern\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="CudaComon.cuh">
+      <Filter>Cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderTarget.h">
+      <Filter>Intern\Main</Filter>
+    </ClInclude>
+    <ClInclude Include="SharedTypes.h">
+      <Filter>Intern\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="GLinterop.h" />
+    <ClInclude Include="BuildTree.cuh">
+      <Filter>Intern\Main\GPU</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Gradient.cpp">
+      <Filter>Intern\Gradient</Filter>
+    </ClCompile>
+    <ClCompile Include="Blob.cpp">
+      <Filter>Intern\Blob</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene.cpp">
+      <Filter>Intern\Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Mesh.cpp">
+      <Filter>Intern\Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Camera.cpp">
+      <Filter>Intern\Main</Filter>
+    </ClCompile>
+    <ClCompile Include="DeviceBuffer.cpp">
+      <Filter>Intern\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="Util.cpp">
+      <Filter>Intern\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderTarget.cpp">
+      <Filter>Intern\Main</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="Gradient.cu">
+      <Filter>Intern\Gradient</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Blob.cu">
+      <Filter>Intern\Blob</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Trace.cu">
+      <Filter>Intern\Main\GPU</Filter>
+    </CudaCompile>
+    <CudaCompile Include="BuildTree.cu">
+      <Filter>Intern\Main\GPU</Filter>
+    </CudaCompile>
+    <CudaCompile Include="BoxTriangle.cu">
+      <Filter>Intern\Main\GPU</Filter>
+    </CudaCompile>
+    <CudaCompile Include="RTClear.cu">
+      <Filter>Intern\Main\GPU</Filter>
+    </CudaCompile>
+  </ItemGroup>
+</Project>
