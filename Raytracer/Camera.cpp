@@ -76,41 +76,36 @@ namespace Beam
         return ERROR_ALL_FINE;
     }
 
-    u32 Camera::clear(sptr<IRenderTarget>& target, u32 value)
+    u32 Camera::clear(u32 value)
     {
-        if ( !target )
+        auto rt = RenderTarget::get();
+        if ( !rt )
         {
-            return ERROR_INVALID_PARAMETER;
+            return ERROR_NO_RENDER_TARGET;
         }
 
-        auto err = setRenderTarget( target );
-        if ( err != ERROR_ALL_FINE ) return err;
-        auto& rt = target;
-
         bmClear( rt->buffer<u32>(), rt->pitch(), rt->width(), rt->height(), value );
-   //     cudaDeviceSynchronize();
-
-        err = setRenderTarget( nullptr );
-        if (err != ERROR_ALL_FINE ) return err;
 
         return ERROR_ALL_FINE;
     }
 
-    u32 Camera::traceScene(const float* eye3, const float* orient3x3, sptr<IScene>& scene, sptr<IRenderTarget>& target)
+    u32 Camera::traceScene(const float* eye3, const float* orient3x3, sptr<IScene>& scene)
     {
         if ( !eye3 || !orient3x3 || !scene || m_width==0 || m_height==0 ||
-             !m_initialRays || !target )
+             !m_initialRays )
         {
             return ERROR_INVALID_PARAMETER;
+        }
+
+        auto rt = RenderTarget::get();
+        if ( !rt )
+        {
+            return ERROR_NO_RENDER_TARGET;
         }
 
         // upate out of date mesh ptrs (if meshes were added/removed)
         Scene* s = sc<Scene*>(scene.get());
         s->updateMeshPtrs();
-
-        u32 err = setRenderTarget(target);
-        if ( err != ERROR_ALL_FINE ) return err;
-        auto& rt = target;
 
         if ( rt->width() != m_width || rt->height() != m_height )
         {
@@ -134,27 +129,6 @@ namespace Beam
             s->staticMeshPtrs()->size()
         );
 
-        cudaDeviceSynchronize();
-        
-        return ERROR_ALL_FINE;
-    }
-
-    u32 Camera::setRenderTarget(sptr<IRenderTarget> target)
-    {
-        // See if not already set, otherwise unlock previous and lock new one if target is not nullptr
-        sptr<IRenderTarget> prevRt = m_prevRenderTarget.lock();
-        if ( prevRt != target )
-        {
-            if ( prevRt ) sc<RenderTarget*>(prevRt.get())->unlock();
-            m_prevRenderTarget = target;
-            if ( target )
-            {
-                void* devPtr;
-                u64 size;
-                u32 err = sc<RenderTarget*>(target.get())->lock(&devPtr, &size);
-                if ( err != ERROR_ALL_FINE ) return err;
-            }
-        }
         return ERROR_ALL_FINE;
     }
 }

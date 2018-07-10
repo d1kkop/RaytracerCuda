@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Types.h"
+// Inluce stdio and assert before cuda_runtime otherwise asserts and printf in kernel wont work..
+#include <stdio.h>
+#include <cassert>
 #include <cuda_runtime.h>
 #include "glm/common.hpp"
 #include "glm/geometric.hpp"
@@ -68,16 +71,35 @@ __forceinline__ __device__
 float bmBoxRayIntersect(const vec3& bMin, const vec3& bMax,
                         const vec3& orig, const vec3& invDir)
 {
-      float tx1  = bMin.x * invDir.x;
-      float tx2  = bMax.x * invDir.x;
-      float tmin = min(tx1, tx2);
-      float tmax = max(tx1, tx2);
-      float ty1  = bMin.y * invDir.y;
-      float ty2  = bMax.y * invDir.y;
-      tmin = max(tmin, min(ty1, ty2));
-      tmax = min(tmax, max(ty1, ty2));
-      float dist = max(tmin, 0.f);
-      bool bHit  = tmax >= dist;
-   //   float dist = tmin < 0 ? tmax : tmin;
-      return (bHit ? dist : FLT_MAX);
+    vec3 tMin   = (bMin - orig) * invDir;
+    vec3 tMax   = (bMax - orig) * invDir;
+    vec3 tMin2  = min(tMin, tMax);
+    vec3 tMax2  = max(tMin, tMax);
+    float ftmin = max(tMin2.x, max(tMin2.y, tMin2.z));
+    float ftmax = min(tMax2.x, min(tMax2.y, tMax2.z));
+    float dist  = max(0.f, ftmin);
+    dist = (ftmax >= ftmin ? dist : FLT_MAX);
+    return dist;
+
+    //float tx1 = (bMin.x - orig.x)*invDir.x;
+    //float tx2 = (bMax.x - orig.x)*invDir.z;
+
+    //float tmin = min(tx1, tx2);
+    //float tmax = max(tx1, tx2);
+
+    //float ty1 = (bMin.y - orig.y)*invDir.y;
+    //float ty2 = (bMax.y - orig.y)*invDir.y;
+ 
+    //tmin = max(tmin, min(ty1, ty2));
+    //tmax = min(tmax, max(ty1, ty2));
+
+    //float tz1 = (bMin.z - orig.z)*invDir.z;
+    //float tz2 = (bMax.z - orig.z)*invDir.z;
+
+    //tmin = max(tmin, min(tz1, tz2));
+    //tmax = min(tmax, max(tz1, tz2));
+ 
+    //float dist = tmin >= 0.f ? tmin : tmax;
+    //dist = (dist < 0.f ? FLT_MAX : dist);
+    //return dist;
 }

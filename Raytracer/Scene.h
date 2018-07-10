@@ -34,7 +34,9 @@ namespace Beam
         sptr<DeviceBuffer> m_rootNode;
         sptr<DeviceBuffer> m_nodeStore;
         sptr<DeviceBuffer> m_faceStore;
+        sptr<DeviceBuffer> m_faceGroupStore;
         sptr<DeviceBuffer> m_facesBuffer;
+        sptr<DeviceBuffer> m_facePtrsBuffer;
         sptr<DeviceBuffer> m_nodesBuffer;
         bool m_mustUpdateMeshPtrs;
     };

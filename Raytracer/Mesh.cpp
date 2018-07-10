@@ -30,7 +30,9 @@ namespace Beam
     u32 Mesh::setVertexData(const float* vertexData, u32 numVertices, u32 numComponents, u32 slotId, bool asyncCopy)
     {
         if ( !vertexData || numVertices==0 || slotId >= VERTEX_DATA_COUNT || numComponents > 4 ||
-             (m_numVertices!=0 && m_numVertices!=numVertices) )
+             (m_numVertices!=0 && m_numVertices!=numVertices) ||
+             (slotId == VERTEX_DATA_POSITION && numComponents != 3 )
+            )
         {
             return ERROR_INVALID_PARAMETER;
         }

@@ -5,22 +5,26 @@ using namespace Beam;
 #define BM_CLEAR_THREADS 256
 
 
-__global__ void bmKernelClear(uint4* buffer, u32 maxAddr, u32 cv)
+__global__ void bmKernelClear(u32* buffer, u32 maxAddr, u32 cv)
 {
+    //if ( threadIdx.x == 0 )
+    //    printf("Hello from kernel\n");
     u32 addr = blockIdx.x * blockDim.x + threadIdx.x;
     addr = min(addr, maxAddr);
-    buffer[addr] = make_uint4(cv, cv,cv, cv);
+    buffer[addr] = cv;
+   // buffer[addr] = cv;// make_uint4(cv, cv,cv, cv);
 }
 
 
 extern "C"
 void bmClear(u32* buffer, u32 pitch, u32 width, u32 height, u32 clearValue)
 {
-    u32 maxAddr  = (pitch/4*height)/4 -1; // pitch is in bytes (/4 because int, again /4 because write 4 ints at a time)
+    u32 maxAddr  = (pitch/4*height) -1; // pitch is in bytes (/4 because int, again /4 because write 4 ints at a time)
     dim3 blocks ( (maxAddr+BM_CLEAR_THREADS-1)/BM_CLEAR_THREADS );
     dim3 threads( BM_CLEAR_THREADS );
+ //   uint4 cv = make_uint4(clearValue, clearValue, clearValue, clearValue);
     bmKernelClear<<< blocks, threads >>>
     ( 
-       (uint4*)buffer, maxAddr, clearValue
+      buffer, maxAddr, clearValue
     );
 }

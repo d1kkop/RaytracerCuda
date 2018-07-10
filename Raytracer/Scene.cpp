@@ -11,25 +11,27 @@ using namespace Beam;
 
 extern "C"
 {
-    void bmResetScene(void* rootNode, void* faceStore, void* nodeStore,
-                      void* faces, void* nodes,
-                      u32 maxFaces, u32 maxNodes);
+    void bmResetScene(void* rootNode, void* faceStore, void* faceGroupStore, void* nodeStore,
+                      void* faces, void* facePtrs, void* nodes,
+                      u32 maxFaces, u32 maxFacePtrs, u32 maxNodes);
 
-        void bmInsertMeshInTree(const vec3* vertices, const u32* indices, u32 numIndices, u32 meshIdx,
-                                vec3 bMin, vec3 bMax,
-                                void* treeRootNode, void* faceStore, void* nodeStore, void* material);
-        u32 bmGetFaceSize();
-        u32 bmGetMaterialSize();
-        u32 bmGetNodeSize();
-        u32 bmGetFaceStoreSize();
-        u32 bmGetNodeStoreSize();
+    void bmInsertMeshInTree(const vec3* vertices, const u32* indices, u32 numIndices, u32 meshIdx,
+                            vec3 bMin, vec3 bMax,
+                            void* treeRootNode, void* faceStore, void* faceGroupStore, void* nodeStore, void* material);
+    u32 bmGetFaceSize();
+    u32 bmGetFacePtrSize();
+    u32 bmGetMaterialSize();
+    u32 bmGetNodeSize();
+    u32 bmGetFaceStoreSize();
+    u32 bmGetNodeStoreSize();
+    u32 bmGetFaceGroupStoreSize();
 }
 
 
 namespace Beam
 {
     constexpr u32 MaxNodes = 1<<16;
-    constexpr u32 MaxFaces = MaxNodes * 100;
+    constexpr u32 MaxFaces = MaxNodes * 128;
 
     // ------ IScene ----------------------------------------------------------------------------------------
 
@@ -42,16 +44,16 @@ namespace Beam
 
     Scene::Scene():
         m_mustUpdateMeshPtrs(false),
-        m_min(vec3(-1000)),
-        m_max(vec3(1000))
+        m_min(vec3(-100)),
+        m_max(vec3(100))
     {
-        u32 nodeSize = bmGetNodeSize();
-        u32 faceSize = bmGetFaceSize();
-        m_rootNode    = make_shared<DeviceBuffer>( bmGetNodeSize() );
-        m_nodeStore   = make_shared<DeviceBuffer>( bmGetNodeStoreSize() );
-        m_faceStore   = make_shared<DeviceBuffer>( bmGetFaceStoreSize() );
-        m_nodesBuffer = make_shared<DeviceBuffer>( MaxNodes * nodeSize );
-        m_facesBuffer = make_shared<DeviceBuffer>( MaxFaces * faceSize );
+        m_rootNode         = make_shared<DeviceBuffer>( bmGetNodeSize() );
+        m_nodeStore        = make_shared<DeviceBuffer>( bmGetNodeStoreSize() );
+        m_faceStore        = make_shared<DeviceBuffer>( bmGetFaceStoreSize() );
+        m_faceGroupStore   = make_shared<DeviceBuffer>( bmGetFaceGroupStoreSize() );
+        m_nodesBuffer      = make_shared<DeviceBuffer>( MaxNodes * bmGetNodeSize() );
+        m_facesBuffer      = make_shared<DeviceBuffer>( MaxFaces * bmGetFaceSize() );
+        m_facePtrsBuffer   = make_shared<DeviceBuffer>( MaxFaces * bmGetFacePtrSize() );
     }
 
     void Scene::addMesh(const sptr<IMesh>& mesh)
@@ -104,11 +106,16 @@ namespace Beam
 
         bmResetScene(
            m_rootNode->ptr<void>(),
+           /* stores */
            m_faceStore->ptr<void>(),
+           m_faceGroupStore->ptr<void>(),
            m_nodeStore->ptr<void>(),
+            /* buffesr */
            m_facesBuffer->ptr<void>(),
+           m_facePtrsBuffer->ptr<void>(),
            m_nodesBuffer->ptr<void>(),
-           MaxFaces, MaxNodes );
+            /* stores' max elements */
+           MaxFaces, MaxFaces, MaxNodes );
        
        for ( u32 i=0; i<m_staticMeshes.size(); i++ )
        {
@@ -128,6 +135,7 @@ namespace Beam
             m_min, m_max, 
             m_rootNode->ptr<void>(), 
             m_faceStore->ptr<void>(),
+            m_faceGroupStore->ptr<void>(),
             m_nodeStore->ptr<void>(),
             nullptr);
     }

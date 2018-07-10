@@ -7,5 +7,9 @@
 /Raytracer/x64/Release
 /TestProgram/x64/Debug
 /TestProgram/x64/Release
-/x64/Release/Images
-/x64/Release/Shaders
+/x64
+/Report20180710-1559.vspx
+/Report20180710-1554.vspx
+/Report20180710-1547.vspx
+*.pdb
+*.vspx

@@ -1,4 +1,5 @@
 #include "BuildTree.cuh"
+#include "CudaHelp.h"
 
 // -------- bmFace ---------------------------------------------------------------------------------------------------------------
 
@@ -7,7 +8,7 @@ __device__ float bmFace::intersect(const vec3& eye, const vec3& dir, const Stati
     assert( meshDataPtrs );
     assert( m_index.w < numMeshes );
     const StaticMeshData* mesh = &meshDataPtrs[m_index.w];
-    uint4 idx = m_index;
+    uint4 idx  = m_index;
     float* vp  = mesh->m_vertexData[ VERTEX_DATA_POSITION ];
     u32 vpSize = mesh->m_vertexDataSizes[ VERTEX_DATA_POSITION ];
     assert( vpSize >= 3 );
@@ -21,67 +22,62 @@ __device__ float bmFace::intersect(const vec3& eye, const vec3& dir, const Stati
 
 __device__ void bmTreeNode::init()
 {
-    m_left = m_right = nullptr;
-    m_faceRoot  = nullptr;
-    m_faceTail  = nullptr;
-    m_syncSplit = 0;
-    m_syncInsertFace = 0;
-    m_ready = true;
+    m_left  = nullptr;
+    m_right = nullptr;
+    m_faceInsertIdx = 0;
 }
 
 __device__ void bmTreeNode::split(bmStore<bmTreeNode>* store)
 {
-    if ( 0 == atomicAdd(&m_syncSplit, 1) )
+    if ( !m_left )
     {
-        m_left  = store->getNew();
-        m_right = store->getNew();
-        m_left->init();
-        m_right->init();
-        //__threadfence(); __threadfence();
+        // NOTE: If left and/or right are not assigned due to atomic compare & swap memory is LEAKDED.
+        // However, the leaked memory is reclaimed every frame.
+        bmTreeNode* leftAndRight = store->getNew(2);
+        if ( atomicCAS( (u64*)&m_left, (u64)0, (u64)leftAndRight ) == 0 )
+        {
+            m_left->init();
+        }
+        if ( atomicCAS( (u64*)&m_right, (u64)0, (u64)(leftAndRight+1) ) == 0 )
+        {
+            m_right->init();
+        }
     }
-    __threadfence();
-    //__syncthreads();
-    while ( !(m_right && m_right->m_ready) );
-    assert( m_left );
-    assert( m_right );
+   // __threadfence();
+  //  assert( m_left );
+  //  assert( m_right );
 }
 
-__device__ void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat )
+// CHECKED with armadillo.obj.
+__device__ void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat )
 {
-    bmFace* face = faceStore->getNew();
-    face->m_index.x = faceIdx.x;
-    face->m_index.y = faceIdx.y;
-    face->m_index.z = faceIdx.z;
-    face->m_index.w = meshIdx;
+    bmFace* face  = faceStore->getNew();
+    face->m_index = make_uint4(faceIdx.x, faceIdx.y, faceIdx.z, meshIdx);
     face->m_material = mat;
-    face->m_next = nullptr;
-    while ( atomicCAS(&m_syncInsertFace, 0, 1) )
+
+    assert( !m_right );
+    if ( !m_faces ) // Multiple thread may pass this gate as it is not thread-safe.
     {
-        if ( !m_faceTail )
-        {
-            m_faceRoot = face;
-            m_faceTail = face;
-        }
-        else
-        {
-            m_faceTail->m_next = face;
-            m_faceTail = m_faceTail->m_next;
-        }
+        // NOTE: If m_faces is already assigned, the allocated faceGroup is LEAKED. 
+        // However, the memory is reclaimed the next frame.
+        bmFace** faces = faceGroupStore->getNew( BUILD_TREE_MAX_DEPTH );
+        atomicCAS( (u64*)&m_faces, (u64)0, (u64)faces ); 
     }
-    atomicExch( &m_syncInsertFace, 0 );
+
+    u32 storeFidx = atomicAdd( &m_faceInsertIdx, 1 );
+    assert( storeFidx < MAX_FACES_PER_BOX );
+    if ( storeFidx < MAX_FACES_PER_BOX )
+    {
+        m_faces[storeFidx] = face;
+    }
 }
 
 
 // -------- bmStackNode -----------------------------------------------------------------------------------------------------------
 
 
-__device__ void bmStackNode_init(bmStackNode* st, bmTreeNode* node, const vec3& bMin, const vec3& bMax, u32 splitAxis, u32 depth)
-{
-    st->init( node, bMin, bMax, splitAxis, depth );
-}
 
 __device__ void bmStackNode::init( bmTreeNode* node, const vec3& bMin, const vec3& bMax, u32 splitAxis, u32 depth )
-//__device__ void bmStackNode::init( bmTreeNode* node, vec3 bMin, vec3 bMax, u32 splitAxis, u32 depth )
 {
     m_min  = bMin;
     m_max  = bMax;
@@ -107,8 +103,8 @@ __device__ void bmStackNode::splitOrAdd( bmStackNode* left, bmStackNode* right, 
     assert( m_node );
     assert( nodeStore );
     m_node->split( nodeStore );
-    assert( m_node->m_left );
-    assert( m_node->m_right );
+ //   assert( m_node->m_left );
+ //   assert( m_node->m_right );
     float s = .5f*(m_max[m_splitAxis]+m_min[m_splitAxis]);
     switch ( m_splitAxis )
     {
@@ -128,7 +124,7 @@ __device__ void bmStackNode::splitOrAdd( bmStackNode* left, bmStackNode* right, 
         break;
 
     default:
-        assert(false);
+     //   assert(false);
         break;
     }
 }
@@ -137,21 +133,23 @@ __device__ void bmStackNode::splitOrAdd( bmStackNode* left, bmStackNode* right, 
 // -------- bmResetSceneKernel -----------------------------------------------------------------------------------------------------------
 
 __global__ void bmResetSceneKernel( bmTreeNode* rootNode,
-                                    bmStore<bmFace>* faceStore, bmStore<bmTreeNode>* nodeStore, 
-                                    bmFace* faces, bmTreeNode* nodes,
-                                    u32 maxFaces, u32 maxNodes )
+                                    bmStore<bmFace>* faceStore, 
+                                    bmStore<bmFace*>* faceGroupStore,
+                                    bmStore<bmTreeNode>* nodeStore, 
+                                    bmFace* faces, bmFace** facePtrs, bmTreeNode* nodes,
+                                    u32 maxFaces, u32 maxFacePtrs, u32 maxNodes )
 {
     rootNode->m_left  = nullptr;
     rootNode->m_right = nullptr;
-    rootNode->m_faceRoot  = nullptr;
-    rootNode->m_faceTail  = nullptr;
-    rootNode->m_syncSplit = 0;
-    rootNode->m_syncInsertFace = 0;
-    rootNode->m_ready = false;
+    rootNode->m_faceInsertIdx = 0;
 
     faceStore->m_elements = faces;
     faceStore->m_top = 0;
     faceStore->m_max = maxFaces;
+
+    faceGroupStore->m_elements = facePtrs;
+    faceGroupStore->m_top = 0;
+    faceGroupStore->m_max = maxFacePtrs;
 
     nodeStore->m_elements = nodes;
     nodeStore->m_top = 0;
@@ -160,20 +158,23 @@ __global__ void bmResetSceneKernel( bmTreeNode* rootNode,
 
 
 extern "C"
-void bmResetScene( void* rootNode, void* faceStore, void* nodeStore, 
-                   void* faces, void* nodes, 
-                   u32 maxFaces, u32 maxNodes )
+void bmResetScene( void* rootNode, void* faceStore, void* faceGroupStore, void* nodeStore,
+                   void* faces, void* facePtrs, void* nodes, 
+                   u32 maxFaces, u32 maxFacePtrs, u32 maxNodes )
 {
-    bmTreeNode* t_rootNode           = (bmTreeNode*) rootNode;
-    bmStore<bmFace>* t_faceStore     = (bmStore<bmFace>*) faceStore;
-    bmStore<bmTreeNode>* t_nodeStore = (bmStore<bmTreeNode>*) nodeStore;
-    bmFace* t_faces                  = (bmFace*) faces;
-    bmTreeNode* t_nodes              = (bmTreeNode*) nodes;
+    bmTreeNode* t_rootNode             = (bmTreeNode*) rootNode;
+    bmStore<bmFace>* t_faceStore       = (bmStore<bmFace>*) faceStore;
+    bmStore<bmFace*>* t_faceGroupStore = (bmStore<bmFace*>*) faceGroupStore;
+    bmStore<bmTreeNode>* t_nodeStore   = (bmStore<bmTreeNode>*) nodeStore;
+    bmFace* t_faces                    = (bmFace*) faces;
+    bmFace** t_facePtrs                = (bmFace**) facePtrs;
+    bmTreeNode* t_nodes                = (bmTreeNode*) nodes;
 
     bmResetSceneKernel<<< 1, 1 >>>
     ( 
-        t_rootNode, t_faceStore, t_nodeStore, t_faces, t_nodes,
-        maxFaces, maxNodes
+        t_rootNode, t_faceStore, t_faceGroupStore, t_nodeStore, 
+        t_faces, t_facePtrs, t_nodes,
+        maxFaces, maxFacePtrs, maxNodes
     );
 }
 
@@ -183,8 +184,11 @@ void bmResetScene( void* rootNode, void* faceStore, void* nodeStore,
 __global__ void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces, 
                                         u32 numFaces, u32 meshIdx,
                                         vec3 bMin, vec3 bMax, 
-                                        bmTreeNode* root, bmStore<bmFace>* faceStore,
-                                        bmStore<bmTreeNode>* nodeStore, bmMaterial* mat )
+                                        bmTreeNode* root, 
+                                        bmStore<bmFace>* faceStore,
+                                        bmStore<bmFace*>* faceGroupStore,
+                                        bmStore<bmTreeNode>* nodeStore, 
+                                        bmMaterial* mat )
 {
     assert( vertices && faces && root && faceStore && nodeStore );
     assert( faceStore->m_max != 0 && nodeStore->m_max != 0 );
@@ -207,41 +211,46 @@ __global__ void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces
 
   //  __shared__ bmStackNode stack[BUILD_TREE_THREADS][BUILD_TREE_MAX_DEPTH];
     bmStackNode stack[BUILD_TREE_MAX_DEPTH];
-    bmStackNode* st = stack;// stack[tIdx];
-    st[0].init( root, bMin, bMax, 0, 0 );
+    stack[0].init( root, bMin, bMax, 0, 0 );
     i32 top = 0;
-    
+
     do
     {
-        bmStackNode* stNode = &st[top--];
+        bmStackNode* stNode = &stack[top--];
         assert( stNode );
         assert( stNode->m_node );
         if ( stNode->intersect( triMin, triMax ) )
         {
-            if ( stNode->m_depth == BUILD_TREE_MAX_DEPTH-1 )
-            {
-                stNode->m_node->insertFace( faceStore, meshIdx, id, mat );
+           if ( stNode->m_depth == BUILD_TREE_MAX_DEPTH-1 )
+           {
+                stNode->m_node->insertFace( faceStore, faceGroupStore, meshIdx, id, mat );
+          //      printf("Inserted..\n");
                 break;
             }
             else
             {
-                assert( top+2 <= BUILD_TREE_MAX_DEPTH );
-                bmStackNode* l = &st[++top];
-                bmStackNode* r = &st[++top];
+          //      printf("Spliting...\n");
+                assert( top+2 < BUILD_TREE_MAX_DEPTH );
+                bmStackNode* l = &stack[++top];
+                bmStackNode* r = &stack[++top];
                 stNode->splitOrAdd( r, l, nodeStore );
                 assert( l->m_node );
                 assert( r->m_node );
             }
         }
     } while ( top >= 0 );
-
 }
 
 
 extern "C"
-void bmInsertMeshInTree( const vec3* vertices, const u32* indices, u32 numIndices, u32 meshIdx,
+void bmInsertMeshInTree( const vec3* vertices, 
+                         const u32* indices, u32 numIndices, u32 meshIdx,
                          vec3 bMin, vec3 bMax,
-                         void* treeRootNode, void* faceStore, void* nodeStore, void* material )
+                         void* treeRootNode, 
+                         void* faceStore, 
+                         void* faceGroupStore,
+                         void* nodeStore, 
+                         void* material )
 {
     u32 numFaces = numIndices / 3;
     assert( numIndices%3 == 0 );
@@ -249,17 +258,21 @@ void bmInsertMeshInTree( const vec3* vertices, const u32* indices, u32 numIndice
     dim3 blocks ( (numFaces+BUILD_TREE_THREADS-1)/BUILD_TREE_THREADS );
     dim3 threads( BUILD_TREE_THREADS );
 
-    bmTreeNode* t_rootNode           = (bmTreeNode*) treeRootNode;
-    bmStore<bmFace>* t_faceStore     = (bmStore<bmFace>*) faceStore;
-    bmStore<bmTreeNode>* t_nodeStore = (bmStore<bmTreeNode>*) nodeStore;
-    bmMaterial* t_material           = (bmMaterial*)material;
+    bmTreeNode* t_rootNode             = (bmTreeNode*) treeRootNode;
+    bmStore<bmFace>* t_faceStore       = (bmStore<bmFace>*) faceStore;
+    bmStore<bmFace*>* t_faceGroupStore = (bmStore<bmFace*>*) faceGroupStore;
+    bmStore<bmTreeNode>* t_nodeStore   = (bmStore<bmTreeNode>*) nodeStore;
+    bmMaterial* t_material             = (bmMaterial*)material;
 
     bmInsertTriangleInTree<<< blocks, threads >>>
     ( 
         vertices, (uint3*)indices, numFaces, meshIdx,
         bMin, bMax, 
-        t_rootNode, t_faceStore, t_nodeStore, t_material
+        t_rootNode, t_faceStore, t_faceGroupStore, 
+        t_nodeStore, t_material
     );
+
+    CUDA_CALL( cudaDeviceSynchronize() );
 }
 
 // -------- bmMarchKernel -----------------------------------------------------------------------------------------------------------
@@ -267,7 +280,7 @@ void bmInsertMeshInTree( const vec3* vertices, const u32* indices, u32 numIndice
 
 __global__ void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
                               const vec3* initialRays, u32 numRays,
-                              u32* buffer, vec3 eye, mat3 orient, 
+                              u32* buffer, vec3 eye, mat3 orient,
                               const StaticMeshData* meshDataPtrs, u32 numMeshes )
 {
     assert(root && initialRays && buffer && meshDataPtrs);
@@ -281,74 +294,85 @@ __global__ void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
 
     bmStackNode stack[BUILD_TREE_MAX_DEPTH];
     bmStackNode* st = &stack[0];
-    st->init( root, bMin, bMax, 0, BUILD_TREE_MAX_DEPTH );
+    st->init( root, bMin, bMax, 0, 0 );
     i32 top  = 0;
     float dClosest = FLT_MAX;
 //    float tU, tV;    
 
-    buffer[i] = 255 << 8;
-    return;
-
     do
     {
+        assert( top >= 0 );
         st = &stack[top--];
+        bmTreeNode* curNode = st->m_node;
         assert(st);
-        assert(st->m_node);
+        assert(curNode);
+
         // check ray box intersect
         float boxDist = bmBoxRayIntersect(st->m_min, st->m_max, eye, invDir);
         if ( boxDist != FLT_MAX )
         {
-            if ( !st->m_node->m_left ) // is leaf
+            if ( !curNode->m_right ) // is leaf
             {
-                // check intersections ray triangle list
-                bmFace* face = st->m_node->m_faceRoot;
-                while ( face )
+                if ( curNode->m_faces )
                 {
-                    float u, v;
-                    float d = face->intersect(eye, dir, meshDataPtrs, numMeshes, u, v);
-                    if ( d < dClosest )
+                    // check intersections ray triangle list
+                    u32 maxLoop = min(MAX_FACES_PER_BOX, curNode->m_faceInsertIdx);
+                    for ( u32 i=0; i<1; i++ )
                     {
-                        dClosest = d;
-                  //      tU = u;
-                  //      tV = v;
+                        bmFace* face = curNode->m_faces[i];
+                        float u, v;
+                        float d = face->intersect(eye, dir, meshDataPtrs, numMeshes, u, v);
+                        if ( d < dClosest )
+                        {
+                            dClosest = d;
+                            //      tU = u;
+                            //      tV = v;
+                        }
                     }
-                    face = face->m_next;
-                }
-                if ( dClosest != FLT_MAX )
-                {
-                    break;
+                    if ( dClosest != FLT_MAX )
+                    {
+                        // if has hit, then this is always the most closest
+                        break;
+                    }
                 }
             }
             else
             {
+                assert( st );
+                assert( top+2 < BUILD_TREE_MAX_DEPTH );
+                assert( curNode->m_left );
+                assert( curNode->m_right );
                 u32 axis   = st->m_splitAxis;
                 u32 naxis  = (axis+1)%3;
-                u32 ndepth = st->m_depth+1;
                 vec3 min   = st->m_min;
                 vec3 max   = st->m_max;
                 float s    = .5f*(max[axis]+min[axis]);
                 vec3 p     = eye + boxDist*dir;
-                if ( p[axis] < s ) // on left side
+                if ( p[axis] < s ) // on 'left' side
                 {
-                    float t = min[axis];
-                    min[axis] = s;
+                    // push right first
+                    float t = min[axis];    // remember old min[axis]
+                    min[axis] = s;          // overwrite
+                    st = &stack[++top];     // push on stack
+                    st->init(curNode->m_right, min, max, naxis, 0);
+                    // push left now
+                    min[axis] = t;  // restore min[axis]
+                    max[axis] = s;  // set max[axis] for left
                     st = &stack[++top];
-                    st->init(st->m_node->m_right, min, max, naxis, ndepth);
-                    min[axis] = t;
-                    max[axis] = s;
-                    st = &stack[++top];
-                    st->init(st->m_node->m_left, min, max, naxis, ndepth);
+                    st->init(curNode->m_left, min, max, naxis, 0);
                 }
-                else
+                else // on 'right' side
                 {
-                    float t = max[axis];
-                    max[axis] = s;
-                    st = &stack[++top];
-                    st->init(st->m_node->m_left, min, max, naxis, ndepth);
-                    min[axis] = s;
-                    max[axis] = t;
-                    st = &stack[++top];
-                    st->init(st->m_node->m_right, min, max, naxis, ndepth);
+                    // push left first
+                    float t = max[axis];    // remember old min[axis]
+                    max[axis] = s;          // set max[axis] for left
+                    st = &stack[++top];     // push on stack
+                    st->init(curNode->m_left, min, max, naxis, 0);
+                    // push right now
+                    min[axis] = s;          // set min[axis] split value       
+                    max[axis] = t;          // restore max[axis] value
+                    st = &stack[++top];     // push
+                    st->init(curNode->m_right, min, max, naxis, 0);
                 }
             }
         }
@@ -386,12 +410,13 @@ void bmMarch(const void* root, const vec3& bMin, const vec3& bMax,
 }
 
 
-
 extern "C"
 {
     u32 bmGetFaceSize() { return sizeof(bmFace); }
+    u32 bmGetFacePtrSize() { return sizeof(bmFace*); }
     u32 bmGetMaterialSize() { return sizeof(bmMaterial); }
     u32 bmGetNodeSize() { return sizeof(bmTreeNode); }
     u32 bmGetFaceStoreSize() { return sizeof(bmStore<bmFace>); }
     u32 bmGetNodeStoreSize() { return sizeof(bmStore<bmTreeNode>); }
+    u32 bmGetFaceGroupStoreSize() { return sizeof(bmStore<bmFace*>); }
 }

@@ -60,12 +60,12 @@ namespace TestProgram
                err = gpuMesh->setVertexData( rc<float*>(mesh->mNormals), mesh->mNumVertices, 3, VERTEX_DATA_NORMAL );
                assert(err==0);
             }
+            float* uv = new float[mesh->mNumVertices*2];
             for ( u32 k=0; k<2; k++ )
             {
                 if ( mesh->HasTextureCoords(k) )
                 {
                     // deform to 2 based component
-                    float* uv = new float[mesh->mNumVertices*2];
                     for ( u32 j = 0; j < mesh->mNumVertices; j++ )
                     {
                         uv[j*2]   = mesh->mTextureCoords[k][j].x;
@@ -73,9 +73,9 @@ namespace TestProgram
                     }
                     err = gpuMesh->setVertexData(uv, mesh->mNumVertices, 2, VERTEX_DATA_UV1+k);
                     assert(err==0);
-             //       delete[] uv;
                 }
             }
+            delete[] uv;
             if ( mesh->HasTangentsAndBitangents() )
             {
                 err = gpuMesh->setVertexData(rc<float*>(mesh->mTangents), mesh->mNumVertices, 3, VERTEX_DATA_TANGENT);

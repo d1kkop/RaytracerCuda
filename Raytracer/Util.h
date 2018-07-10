@@ -8,12 +8,10 @@ namespace Beam
 	class Util
 	{
 	public:
-        // Elapsed ms since epoch.
-		static u64 abs_time();
-        // Elapsed ms since first call to run_time.
-        static u64 run_time(); 
-        // Elapsed seconds sine first call to time.
+		static double abs_time();
+        static double run_time(); 
         static float time();
+        static double timeD();
 	};
 
 

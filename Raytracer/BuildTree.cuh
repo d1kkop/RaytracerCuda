@@ -8,9 +8,11 @@ using namespace std;
 using namespace Beam;
 
 
-#define BUILD_TREE_THREADS 128
-#define BUILD_TREE_MAX_DEPTH 12
+#define BUILD_TREE_THREADS 256
+#define BUILD_TREE_MAX_DEPTH 32
 #define MARCH_THREADS 256
+#define MAX_FACES_PER_BOX 32
+
 
 struct bmMaterial
 {
@@ -21,7 +23,6 @@ struct bmMaterial
 struct bmFace
 {
     uint4 m_index; // x,y,z indices, w meshIdx
-    bmFace* m_next;
     bmMaterial* m_material;
     __device__ float intersect(const vec3& eye, const vec3& dir, const StaticMeshData* meshDataPtrs, u32 numMeshes, float& u, float& v);
 };
@@ -34,14 +35,14 @@ struct bmStore
     u32 m_top;
     u32 m_max;
 
-    __forceinline__ __device__ T* getNew()
+    __forceinline__ __device__ T* getNew(u32 cnt=1)
     {
     #if _DEBUG
         if ( m_top >= m_max )
             printf("m_top = %d, max = %d\n", m_top, m_max);
         assert(m_top < m_max);
     #endif
-        u32 old = atomicAdd(&m_top, 1);
+        u32 old = atomicAdd(&m_top, cnt);
         return m_elements + old;
     }
 };
@@ -49,16 +50,17 @@ struct bmStore
 
 struct bmTreeNode
 {
-    bmTreeNode* m_left;
+    union
+    {
+        bmTreeNode* m_left;    
+        bmFace** m_faces;
+    };
     bmTreeNode* m_right;
-    bmFace* m_faceRoot;
-    bmFace* m_faceTail;
-    u32 m_syncSplit, m_syncInsertFace;
-    bool m_ready;
+    u32 m_faceInsertIdx;
 
     __device__ void init();
     __device__ void split(bmStore<bmTreeNode>* store);
-    __device__ void insertFace(bmStore<bmFace>* faceStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat);
+    __device__ void insertFace(bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat);
 };
 
 

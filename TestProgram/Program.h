@@ -15,6 +15,38 @@ using namespace Beam;
 
 namespace TestProgram
 {
+    struct ProfileItem
+    {
+        std::string name;
+        double start;
+        double end;
+
+        ProfileItem(const std::string& s):
+            name(s),
+            start(Util::timeD())
+        {
+        }
+    };
+
+    struct ProfileItemWithCuda : public ProfileItem
+    {
+        //cudaEvent_t cstart, cend;
+
+        //ProfileItemWithCuda(const std::string& s):
+        //    cstart(nullptr),
+        //    cend(nullptr),
+        //    ProfileItem(s)
+        //{
+        //    CUDA_CALL( cudaEventCreate( &cstart ) );
+        //}
+
+        //~ProfileItemWithCuda()
+        //{
+        //    CUDA_CALL( cudaEventDestroy( cstart ) );
+        //    CUDA_CALL( cudaEventDestroy( cend ) );
+        //}
+    };
+
     class Program
     {
     public:
@@ -28,6 +60,8 @@ namespace TestProgram
         void initSDL(const std::string& name, u32 width, u32 height);
         void closeSDL();
         void renderFrame();
+        void printProfileItems();
+        void pushProfile(ProfileItem& pi);
 
         SDL_Window*   m_window;
         SDL_Renderer* m_renderer;
@@ -40,8 +74,9 @@ namespace TestProgram
 
         // using openGL interop
         GLTextureBufferRenderer m_glRenderer;
-        GLTextureBufferObject m_textureBufferObject;
-
-        u32* m_tempBuff;
+        GLTextureBufferObject m_textureBufferObject[4];
+        u32 m_bufferObjIdx;
+        
+        std::vector<ProfileItem> m_profileItems;
     };
 }

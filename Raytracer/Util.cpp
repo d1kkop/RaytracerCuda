@@ -6,19 +6,24 @@ using namespace chrono;
 
 namespace Beam
 {
-	u64 Util::abs_time()
+	double Util::abs_time()
 	{
-		return duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+		return sc<double>( duration_cast<duration<double,milli>>( high_resolution_clock::now().time_since_epoch() ).count() );
 	}
 
-    u64 Util::run_time()
+    double Util::run_time()
     {
-        static u64 begin = abs_time();
+        static double begin = abs_time();
         return abs_time() - begin;
     }
 
     float Util::time()
     {
-        return sc<float>(sc<double>(run_time())*0.001);
+        return sc<float>( timeD() );
+    }
+
+    double Util::timeD()
+    {
+        return run_time()*0.001;
     }
 }

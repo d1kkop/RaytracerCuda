@@ -6,6 +6,9 @@
 #include "glatter/glatter.h"
 #include "Beam.h"
 
+extern bool bmGLHasContext();
+
+
 namespace Beam
 {
     static const char* gl_vertexCode =
@@ -23,7 +26,7 @@ namespace Beam
             #version 420 core
             out vec4 FragColor;
             layout (binding = 0) uniform usamplerBuffer buffer;
-            uniform int _width = 1200;
+            uniform int _width = 1;
             void main()
             {
                 const float inv255 = 1.f/255.f;
@@ -41,6 +44,14 @@ namespace Beam
         {
         }
 
+        ~GLTextureBufferObject()
+        {
+            if ( !m_initialized ) return;
+            if ( !bmGLHasContext() ) return;
+            glDeleteBuffers(1, &m_GLbuffer);
+            glDeleteTextures(1, &m_GLtexture);
+        }
+
         bool init(u32 width, u32 height)
         {
             assert(width!=0&&height!=0);
@@ -53,13 +64,6 @@ namespace Beam
             m_renderTarget = IRenderTarget::registerOpenGLRT(m_GLbuffer, width, height, width*4);
             m_initialized  = true;
             return true;
-        }
-
-        ~GLTextureBufferObject()
-        {
-            if (!m_initialized) return;
-            glDeleteBuffers( 1, &m_GLbuffer );
-            glDeleteTextures( 1, &m_GLtexture ); 
         }
 
         sptr<IRenderTarget> renderTarget() const { return m_renderTarget; }
@@ -88,7 +92,8 @@ namespace Beam
 
         ~GLTextureBufferRenderer()
         {
-            if (!m_initialized) return;
+            if ( !m_initialized ) return;
+            if ( !bmGLHasContext() ) return;
             glDeleteShader(m_GLfragmentShader);
             glDeleteShader(m_GLvertexShader);
             glDeleteProgram(m_GLshaderProgram);
@@ -167,8 +172,8 @@ namespace Beam
             // As little fragment processing as possible
             glDisable(GL_CULL_FACE);
             glDisable(GL_DEPTH_TEST);
-            /*    glDisable(GL_ALPHA_TEST);
-                glDisable(GL_BLEND);*/
+            glDisable(GL_ALPHA_TEST);
+            glDisable(GL_BLEND);
 
             m_initialized=true;
             return true;
@@ -188,6 +193,11 @@ namespace Beam
             // No clear screen or gl render state changes necessary.
             glDrawArrays(GL_QUADS, 0, 4);
         };
+
+        void sync()
+        {
+            glFinish();
+        }
 
 
      private:
