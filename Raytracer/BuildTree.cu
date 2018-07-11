@@ -10,11 +10,10 @@ __device__ float bmFace::intersect(const vec3& eye, const vec3& dir, const Stati
     const StaticMeshData* mesh = &meshDataPtrs[m_index.w];
     uint4 idx  = m_index;
     float* vp  = mesh->m_vertexData[ VERTEX_DATA_POSITION ];
-    u32 vpSize = mesh->m_vertexDataSizes[ VERTEX_DATA_POSITION ];
-    assert( vpSize >= 3 );
-    vec3 v1 = *(vec3*)(vp + vpSize*idx.x);
-    vec3 v2 = *(vec3*)(vp + vpSize*idx.y);
-    vec3 v3 = *(vec3*)(vp + vpSize*idx.z);
+    assert( mesh->m_vertexDataSizes[ VERTEX_DATA_POSITION ] == 3 );
+    vec3 v1 = *(vec3*)(vp + 3*idx.x);
+    vec3 v2 = *(vec3*)(vp + 3*idx.y);
+    vec3 v3 = *(vec3*)(vp + 3*idx.z);
     return bmTriIntersect( eye, dir, v1, v2, v3, u, v );
 }
 
@@ -29,26 +28,21 @@ __device__ void bmTreeNode::init()
 
 __device__ void bmTreeNode::split(bmStore<bmTreeNode>* store)
 {
-    if ( !m_left )
+    if ( !(m_left && m_right) )
     {
         // NOTE: If left and/or right are not assigned due to atomic compare & swap memory is LEAKDED.
         // However, the leaked memory is reclaimed every frame.
         bmTreeNode* leftAndRight = store->getNew(2);
-        if ( atomicCAS( (u64*)&m_left, (u64)0, (u64)leftAndRight ) == 0 )
-        {
-            m_left->init();
-        }
-        if ( atomicCAS( (u64*)&m_right, (u64)0, (u64)(leftAndRight+1) ) == 0 )
-        {
-            m_right->init();
-        }
+        bool leftSwapped  = atomicCAS( (u64*)&m_left, (u64)0, (u64)leftAndRight ) == 0;
+        bool rightSwapped = atomicCAS( (u64*)&m_right, (u64)0, (u64)(leftAndRight+1) ) == 0;
+        if ( leftSwapped ) m_left->init();
+        if ( rightSwapped) m_right->init();
     }
-   // __threadfence();
-  //  assert( m_left );
-  //  assert( m_right );
+    __threadfence();
+    assert( m_left );
+    assert( m_right );
 }
 
-// CHECKED with armadillo.obj.
 __device__ void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat )
 {
     bmFace* face  = faceStore->getNew();
@@ -63,11 +57,14 @@ __device__ void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFa
         bmFace** faces = faceGroupStore->getNew( BUILD_TREE_MAX_DEPTH );
         atomicCAS( (u64*)&m_faces, (u64)0, (u64)faces ); 
     }
+    __threadfence();
+    assert( m_faces );
 
     u32 storeFidx = atomicAdd( &m_faceInsertIdx, 1 );
-    assert( storeFidx < MAX_FACES_PER_BOX );
+ //   assert( storeFidx < MAX_FACES_PER_BOX );
     if ( storeFidx < MAX_FACES_PER_BOX )
     {
+      //  atomicExch( (u64)(m_faces+storeFidx), (u64)face );
         m_faces[storeFidx] = face;
     }
 }
@@ -103,8 +100,8 @@ __device__ void bmStackNode::splitOrAdd( bmStackNode* left, bmStackNode* right, 
     assert( m_node );
     assert( nodeStore );
     m_node->split( nodeStore );
- //   assert( m_node->m_left );
- //   assert( m_node->m_right );
+    assert( m_node->m_left );
+    assert( m_node->m_right );
     float s = .5f*(m_max[m_splitAxis]+m_min[m_splitAxis]);
     switch ( m_splitAxis )
     {
@@ -124,7 +121,7 @@ __device__ void bmStackNode::splitOrAdd( bmStackNode* left, bmStackNode* right, 
         break;
 
     default:
-     //   assert(false);
+        assert(false);
         break;
     }
 }
@@ -162,6 +159,9 @@ void bmResetScene( void* rootNode, void* faceStore, void* faceGroupStore, void* 
                    void* faces, void* facePtrs, void* nodes, 
                    u32 maxFaces, u32 maxFacePtrs, u32 maxNodes )
 {
+    assert( maxNodes >= 1<<BUILD_TREE_MAX_DEPTH );
+    assert( maxFaces >= maxNodes * MAX_FACES_PER_BOX );
+
     bmTreeNode* t_rootNode             = (bmTreeNode*) rootNode;
     bmStore<bmFace>* t_faceStore       = (bmStore<bmFace>*) faceStore;
     bmStore<bmFace*>* t_faceGroupStore = (bmStore<bmFace*>*) faceGroupStore;
@@ -209,7 +209,8 @@ __global__ void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces
         triMax[i] = max(v[0][i], max(v[1][i], v[2][i]));
     }
 
-  //  __shared__ bmStackNode stack[BUILD_TREE_THREADS][BUILD_TREE_MAX_DEPTH];
+   // __shared__ bmStackNode stack_shared[BUILD_TREE_THREADS][BUILD_TREE_MAX_DEPTH];
+   // bmStackNode* stack = stack_shared[tIdx];
     bmStackNode stack[BUILD_TREE_MAX_DEPTH];
     stack[0].init( root, bMin, bMax, 0, 0 );
     i32 top = 0;
@@ -219,6 +220,7 @@ __global__ void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces
         bmStackNode* stNode = &stack[top--];
         assert( stNode );
         assert( stNode->m_node );
+
         if ( stNode->intersect( triMin, triMax ) )
         {
            if ( stNode->m_depth == BUILD_TREE_MAX_DEPTH-1 )
@@ -272,7 +274,6 @@ void bmInsertMeshInTree( const vec3* vertices,
         t_nodeStore, t_material
     );
 
-    CUDA_CALL( cudaDeviceSynchronize() );
 }
 
 // -------- bmMarchKernel -----------------------------------------------------------------------------------------------------------
@@ -317,7 +318,7 @@ __global__ void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
                 {
                     // check intersections ray triangle list
                     u32 maxLoop = min(MAX_FACES_PER_BOX, curNode->m_faceInsertIdx);
-                    for ( u32 i=0; i<1; i++ )
+                    for ( u32 i=0; i<maxLoop; i++ )
                     {
                         bmFace* face = curNode->m_faces[i];
                         float u, v;

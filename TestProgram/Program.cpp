@@ -131,7 +131,7 @@ namespace TestProgram
             frame.start = Util::timeD();
 
             // handle window events
-            ProfileItem input("PollEvent");
+            ProfileItem input("Poll");
             SDL_Event event;
             while ( SDL_PollEvent(&event) )
             {
@@ -177,7 +177,7 @@ namespace TestProgram
     {
         u32 err=0;
 
-        ProfileItem pigpuScene("Update gpu scene");
+        ProfileItem pigpuScene(R"(Scene)");
         m_scene->updateGPUScene();
         pushProfile(pigpuScene);
 
@@ -194,18 +194,24 @@ namespace TestProgram
         //pushProfile(pil);
 
         // -- Clear --
-        static int c=0;
-        c = (c+1)%256;
-        ProfileItem pic("Clear");
-        err = m_camera->clear( c<<16 );
-        assert(err==0);
-        pushProfile(pic);
+        {
+//             static int c=0;
+//             c = (c+1)%256;
+//             ProfileItem pic("Clear");
+//             err = m_camera->clear(c<<16);
+//             assert(err==0);
+//             pushProfile(pic);
+        }
 
-        //// -- Trace scene --
-        vec3 eye    = vec3(0, 0, -2.1f);
-        mat3 orient = mat3(1.f);
-     //   err = m_camera->traceScene(&eye.x, &orient[0][0], m_scene, m_textureBufferObject.renderTarget());
-     //   assert(err==0);
+        // -- Trace scene --
+        ProfileItem piTrace("Trace");
+        {
+            vec3 eye    = vec3(0, 0, -2.1f);
+            mat3 orient = mat3(1.f);
+            err = m_camera->traceScene(&eye.x, &orient[0][0], m_scene);
+            assert(err==0);
+        }
+        pushProfile(piTrace);
 
       //  cudaDeviceSynchronize();
 
@@ -228,8 +234,6 @@ namespace TestProgram
         ProfileItem pisw("Swap");
         SDL_GL_SwapWindow( m_window );
         pushProfile(pisw);
-
-
     }
 
 

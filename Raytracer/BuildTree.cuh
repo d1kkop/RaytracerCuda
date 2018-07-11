@@ -7,10 +7,12 @@
 using namespace std;
 using namespace Beam;
 
-
+// thread sizes
 #define BUILD_TREE_THREADS 256
-#define BUILD_TREE_MAX_DEPTH 32
 #define MARCH_THREADS 256
+
+// tree memory
+#define BUILD_TREE_MAX_DEPTH 12
 #define MAX_FACES_PER_BOX 32
 
 
@@ -38,9 +40,9 @@ struct bmStore
     __forceinline__ __device__ T* getNew(u32 cnt=1)
     {
     #if _DEBUG
-        if ( m_top >= m_max )
+        if ( m_top+cnt > m_max )
             printf("m_top = %d, max = %d\n", m_top, m_max);
-        assert(m_top < m_max);
+        assert(m_top+cnt <= m_max);
     #endif
         u32 old = atomicAdd(&m_top, cnt);
         return m_elements + old;
@@ -73,7 +75,7 @@ struct bmStackNode
 
     __device__ void init(bmTreeNode* node, const vec3& bMin, const vec3& bMax, u32 splitAxis, u32 depth);
     __device__ bool intersect(const vec3& triMin, const vec3& triMax);
-    __device__ void splitOrAdd(bmStackNode* left, bmStackNode* right, bmStore<bmTreeNode>* nodeStore);
+     __device__ void splitOrAdd(bmStackNode* left, bmStackNode* right, bmStore<bmTreeNode>* nodeStore);
 };
 
 
