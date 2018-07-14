@@ -177,9 +177,14 @@ namespace TestProgram
     {
         u32 err=0;
 
-        ProfileItem pigpuScene(R"(Scene)");
-        m_scene->updateGPUScene();
-        pushProfile(pigpuScene);
+        static bool first=true;
+        if ( first )
+        {
+            first = false;
+            ProfileItem pigpuScene(R"(Scene)");
+            m_scene->updateGPUScene();
+            pushProfile(pigpuScene);
+        }
 
         //ProfileItem piu("Unlock");
         //m_bufferObjIdx = (m_bufferObjIdx+1)%NUM_RT;

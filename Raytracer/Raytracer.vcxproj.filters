@@ -109,5 +109,8 @@
     <CudaCompile Include="RTClear.cu">
       <Filter>Intern\Main\GPU</Filter>
     </CudaCompile>
+    <CudaCompile Include="Hash.cu">
+      <Filter>Intern\Main\GPU</Filter>
+    </CudaCompile>
   </ItemGroup>
 </Project>

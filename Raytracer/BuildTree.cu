@@ -76,11 +76,11 @@ __device__ void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFa
 
 __device__ void bmStackNode::init( bmTreeNode* node, const vec3& bMin, const vec3& bMax, u32 splitAxis, u32 depth )
 {
-    m_min  = bMin;
-    m_max  = bMax;
-    m_node = node;
-    m_splitAxis = splitAxis;
+    m_min   = bMin;
+    m_max   = bMax;
+    m_node  = node;
     m_depth = depth;
+    m_splitAxis = splitAxis;
 }
 
 __device__ bool bmStackNode::intersect(const vec3& triMin, const vec3& triMax)
@@ -102,22 +102,23 @@ __device__ void bmStackNode::splitOrAdd( bmStackNode* left, bmStackNode* right, 
     m_node->split( nodeStore );
     assert( m_node->m_left );
     assert( m_node->m_right );
+    u32 ndepth = m_depth+1;
     float s = .5f*(m_max[m_splitAxis]+m_min[m_splitAxis]);
     switch ( m_splitAxis )
     {
     case 0:
-        left->init ( m_node->m_left, m_min, vec3(s, m_max.y, m_max.z), 1, m_depth+1 );
-        right->init( m_node->m_right, vec3(s, m_min.y, m_min.z), m_max, 1, m_depth+1 );
+        left->init ( m_node->m_left,  m_min, vec3(s, m_max.y, m_max.z), 1, ndepth );
+        right->init( m_node->m_right, vec3(s, m_min.y, m_min.z), m_max, 1, ndepth );
         break;
     
     case 1:
-        left->init ( m_node->m_left, m_min, vec3(m_max.x, s, m_max.z), 2, m_depth+1 );
-        right->init( m_node->m_right, vec3(m_min.x, s, m_min.z), m_max, 2, m_depth+1 );
+        left->init ( m_node->m_left,  m_min, vec3(m_max.x, s, m_max.z), 2, ndepth );
+        right->init( m_node->m_right, vec3(m_min.x, s, m_min.z), m_max, 2, ndepth );
         break;
 
     case 2:
-        left->init ( m_node->m_left, m_min, vec3(m_max.x, m_max.y, s), 0, m_depth+1 );
-        right->init( m_node->m_right, vec3(m_min.x, m_min.y, s), m_max, 0, m_depth+1 );
+        left->init ( m_node->m_left,  m_min, vec3(m_max.x, m_max.y, s), 0, ndepth );
+        right->init( m_node->m_right, vec3(m_min.x, m_min.y, s), m_max, 0, ndepth );
         break;
 
     default:

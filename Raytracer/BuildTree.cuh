@@ -13,7 +13,7 @@ using namespace Beam;
 
 // tree memory
 #define BUILD_TREE_MAX_DEPTH 12
-#define MAX_FACES_PER_BOX 32
+#define MAX_FACES_PER_BOX 2
 
 
 struct bmMaterial

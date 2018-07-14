@@ -69,7 +69,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;WIN64;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;_NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -106,6 +106,7 @@
     <CudaCompile Include="BoxTriangle.cu" />
     <CudaCompile Include="BuildTree.cu" />
     <CudaCompile Include="Gradient.cu" />
+    <CudaCompile Include="Hash.cu" />
     <CudaCompile Include="RTClear.cu" />
     <CudaCompile Include="Trace.cu" />
   </ItemGroup>
