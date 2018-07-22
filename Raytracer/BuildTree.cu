@@ -1,9 +1,10 @@
 #include "BuildTree.cuh"
 #include "CudaHelp.h"
 
+
 // -------- bmFace ---------------------------------------------------------------------------------------------------------------
 
-__device__ float bmFace::intersect(const vec3& eye, const vec3& dir, const StaticMeshData* meshDataPtrs, u32 numMeshes, float& u, float& v)
+DEVICE float bmFace::intersect(const vec3& eye, const vec3& dir, const StaticMeshData* meshDataPtrs, u32 numMeshes, float& u, float& v)
 {
     assert( meshDataPtrs );
     assert( m_index.w < numMeshes );
@@ -19,31 +20,31 @@ __device__ float bmFace::intersect(const vec3& eye, const vec3& dir, const Stati
 
 // -------- bmTreeNode -----------------------------------------------------------------------------------------------------------
 
-__device__ void bmTreeNode::init()
+DEVICE void bmTreeNode::init()
 {
     m_left  = nullptr;
     m_right = nullptr;
     m_faceInsertIdx = 0;
 }
 
-__device__ void bmTreeNode::split(bmStore<bmTreeNode>* store)
+DEVICE void bmTreeNode::split(bmStore<bmTreeNode>* store)
 {
     if ( !(m_left && m_right) )
     {
         // NOTE: If left and/or right are not assigned due to atomic compare & swap memory is LEAKDED.
         // However, the leaked memory is reclaimed every frame.
         bmTreeNode* leftAndRight = store->getNew(2);
-        bool leftSwapped  = atomicCAS( (u64*)&m_left, (u64)0, (u64)leftAndRight ) == 0;
-        bool rightSwapped = atomicCAS( (u64*)&m_right, (u64)0, (u64)(leftAndRight+1) ) == 0;
+        bool leftSwapped  = atomicCAS2<u64>( (u64*)&m_left, (u64)0, (u64)leftAndRight ) == 0;
+        bool rightSwapped = atomicCAS2<u64>( (u64*)&m_right, (u64)0, (u64)(leftAndRight+1) ) == 0;
         if ( leftSwapped ) m_left->init();
         if ( rightSwapped) m_right->init();
     }
-    __threadfence();
+    THREAD_FENCE();
     assert( m_left );
     assert( m_right );
 }
 
-__device__ void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat )
+DEVICE void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat )
 {
     bmFace* face  = faceStore->getNew();
     face->m_index = make_uint4(faceIdx.x, faceIdx.y, faceIdx.z, meshIdx);
@@ -55,12 +56,12 @@ __device__ void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFa
         // NOTE: If m_faces is already assigned, the allocated faceGroup is LEAKED. 
         // However, the memory is reclaimed the next frame.
         bmFace** faces = faceGroupStore->getNew( BUILD_TREE_MAX_DEPTH );
-        atomicCAS( (u64*)&m_faces, (u64)0, (u64)faces ); 
+        atomicCAS2<u64>( (u64*)&m_faces, (u64)0, (u64)faces ); 
     }
-    __threadfence();
+    THREAD_FENCE();
     assert( m_faces );
 
-    u32 storeFidx = atomicAdd( &m_faceInsertIdx, 1 );
+    u32 storeFidx = atomicAdd2<u32>( &m_faceInsertIdx, 1 );
  //   assert( storeFidx < MAX_FACES_PER_BOX );
     if ( storeFidx < MAX_FACES_PER_BOX )
     {
@@ -74,7 +75,7 @@ __device__ void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFa
 
 
 
-__device__ void bmStackNode::init( bmTreeNode* node, const vec3& bMin, const vec3& bMax, u32 splitAxis, u32 depth )
+FDEVICE void bmStackNode::init( bmTreeNode* node, const vec3& bMin, const vec3& bMax, u32 splitAxis, u32 depth )
 {
     m_min   = bMin;
     m_max   = bMax;
@@ -83,54 +84,28 @@ __device__ void bmStackNode::init( bmTreeNode* node, const vec3& bMin, const vec
     m_splitAxis = splitAxis;
 }
 
-__device__ bool bmStackNode::intersect(const vec3& triMin, const vec3& triMax)
+FDEVICE bool bmStackNode::intersect(const vec3& triMin, const vec3& triMax)
 {
-    u32 misCount = 0;
-    #pragma unroll
-    for ( int i=0; i<3; ++i )
-    {
-        misCount += triMin[i] > m_max[i];
-        misCount += triMax[i] < m_min[i];
-    }
-    return misCount == 0;
-}
-
-__device__ void bmStackNode::splitOrAdd( bmStackNode* left, bmStackNode* right, bmStore<bmTreeNode>* nodeStore )
-{
-    assert( m_node );
-    assert( nodeStore );
-    m_node->split( nodeStore );
-    assert( m_node->m_left );
-    assert( m_node->m_right );
-    u32 ndepth = m_depth+1;
-    float s = .5f*(m_max[m_splitAxis]+m_min[m_splitAxis]);
-    switch ( m_splitAxis )
-    {
-    case 0:
-        left->init ( m_node->m_left,  m_min, vec3(s, m_max.y, m_max.z), 1, ndepth );
-        right->init( m_node->m_right, vec3(s, m_min.y, m_min.z), m_max, 1, ndepth );
-        break;
-    
-    case 1:
-        left->init ( m_node->m_left,  m_min, vec3(m_max.x, s, m_max.z), 2, ndepth );
-        right->init( m_node->m_right, vec3(m_min.x, s, m_min.z), m_max, 2, ndepth );
-        break;
-
-    case 2:
-        left->init ( m_node->m_left,  m_min, vec3(m_max.x, m_max.y, s), 0, ndepth );
-        right->init( m_node->m_right, vec3(m_min.x, m_min.y, s), m_max, 0, ndepth );
-        break;
-
-    default:
-        assert(false);
-        break;
-    }
+ //   u32 misCount = 0;
+    bool b = ( triMin[0] > m_max[0] ? false : 
+         ( triMin[1] > m_max[1] ? false : 
+          ( triMin[2] > m_max[2] ? false : 
+           ( triMax[0] < m_min[0] ? false : 
+            ( triMax[1] < m_min[1] ? false : 
+              ( triMax[0] < m_min[0] ? false : true ))))));
+    return b;
+    //for ( int i=0; i<3; ++i )
+    //{
+    //    misCount += triMin[i] > m_max[i];
+    //    misCount += triMax[i] < m_min[i];
+    //}
+    //return misCount == 0;
 }
 
 
 // -------- bmResetSceneKernel -----------------------------------------------------------------------------------------------------------
 
-__global__ void bmResetSceneKernel( bmTreeNode* rootNode,
+GLOBAL void bmResetSceneKernel( bmTreeNode* rootNode,
                                     bmStore<bmFace>* faceStore, 
                                     bmStore<bmFace*>* faceGroupStore,
                                     bmStore<bmTreeNode>* nodeStore, 
@@ -171,18 +146,61 @@ void bmResetScene( void* rootNode, void* faceStore, void* faceGroupStore, void* 
     bmFace** t_facePtrs                = (bmFace**) facePtrs;
     bmTreeNode* t_nodes                = (bmTreeNode*) nodes;
 
+#if CUDA
     bmResetSceneKernel<<< 1, 1 >>>
     ( 
         t_rootNode, t_faceStore, t_faceGroupStore, t_nodeStore, 
         t_faces, t_facePtrs, t_nodes,
         maxFaces, maxFacePtrs, maxNodes
     );
+#else
+    bmResetSceneKernel 
+    ( 
+        t_rootNode, t_faceStore, t_faceGroupStore, t_nodeStore, 
+        t_faces, t_facePtrs, t_nodes,
+        maxFaces, maxFacePtrs, maxNodes
+    );
+#endif
 }
 
 
 // -------- bmInserTriangleInTree -----------------------------------------------------------------------------------------------------------
 
-__global__ void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces, 
+
+// NOTE: Deliberately pass bMin and bMax by value as stack memory is used by stLeft and stRight.
+DEVICE void splitOrAdd( bmTreeNode* node, vec3 bMin, vec3 bMax, u32 splitAxis, u32 ndepth,
+                        bmStackNode* stLeft, bmStackNode* stRight, bmStore<bmTreeNode>* nodeStore )
+{
+    assert( node );
+    assert( nodeStore );
+    node->split( nodeStore ); // this creates 2 new tree nodes for node
+    assert( node->m_left );
+    assert( node->m_right );
+    float s = .5f*(bMax[splitAxis]+bMin[splitAxis]);
+    switch ( splitAxis )
+    {
+    case 0:
+        stLeft->init ( node->m_left,  bMin, vec3(s, bMax.y, bMax.z), 1, ndepth );
+        stRight->init( node->m_right, vec3(s, bMin.y, bMin.z), bMax, 1, ndepth );
+        break;
+    
+    case 1:
+        stLeft->init ( node->m_left,  bMin, vec3(bMax.x, s, bMax.z), 2, ndepth );
+        stRight->init( node->m_right, vec3(bMin.x, s, bMin.z), bMax, 2, ndepth );
+        break;
+
+    case 2:
+        stLeft->init ( node->m_left,  bMin, vec3(bMax.x, bMax.y, s), 0, ndepth );
+        stRight->init( node->m_right, vec3(bMin.x, bMin.y, s), bMax, 0, ndepth );
+        break;
+
+    default:
+        assert(false);
+        break;
+    }
+}
+
+GLOBAL void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces, 
                                         u32 numFaces, u32 meshIdx,
                                         vec3 bMin, vec3 bMax, 
                                         bmTreeNode* root, 
@@ -195,19 +213,18 @@ __global__ void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces
     assert( faceStore->m_max != 0 && nodeStore->m_max != 0 );
 
     // face index
-    u32 tIdx = threadIdx.x;
-    u32 fIdx = blockIdx.x * blockDim.x + tIdx;
+    u32 tx   = tIdx.x;
+    u32 fIdx = bIdx.x * bDim.x + tx;
     if ( fIdx >= numFaces ) return;
     uint3 id  = faces[fIdx];
     vec3 v[3] = { vertices[id.x], vertices[id.y], vertices[id.z] };
 
     // obtain aabb of triangle
     vec3 triMin, triMax;
-    #pragma unroll
     for ( int i=0; i<3; ++i )
     {
-        triMin[i] = min(v[0][i], min(v[1][i], v[2][i]));
-        triMax[i] = max(v[0][i], max(v[1][i], v[2][i]));
+        triMin[i] = _min(v[0][i], _min(v[1][i], v[2][i]));
+        triMax[i] = _max(v[0][i], _max(v[1][i], v[2][i]));
     }
 
    // __shared__ bmStackNode stack_shared[BUILD_TREE_THREADS][BUILD_TREE_MAX_DEPTH];
@@ -221,7 +238,6 @@ __global__ void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces
         bmStackNode* stNode = &stack[top--];
         assert( stNode );
         assert( stNode->m_node );
-
         if ( stNode->intersect( triMin, triMax ) )
         {
            if ( stNode->m_depth == BUILD_TREE_MAX_DEPTH-1 )
@@ -236,7 +252,7 @@ __global__ void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces
                 assert( top+2 < BUILD_TREE_MAX_DEPTH );
                 bmStackNode* l = &stack[++top];
                 bmStackNode* r = &stack[++top];
-                stNode->splitOrAdd( r, l, nodeStore );
+                splitOrAdd( stNode->m_node, stNode->m_min, stNode->m_max, stNode->m_splitAxis, stNode->m_depth+1, l, r, nodeStore );
                 assert( l->m_node );
                 assert( r->m_node );
             }
@@ -258,15 +274,15 @@ void bmInsertMeshInTree( const vec3* vertices,
     u32 numFaces = numIndices / 3;
     assert( numIndices%3 == 0 );
 
-    dim3 blocks ( (numFaces+BUILD_TREE_THREADS-1)/BUILD_TREE_THREADS );
-    dim3 threads( BUILD_TREE_THREADS );
-
     bmTreeNode* t_rootNode             = (bmTreeNode*) treeRootNode;
     bmStore<bmFace>* t_faceStore       = (bmStore<bmFace>*) faceStore;
     bmStore<bmFace*>* t_faceGroupStore = (bmStore<bmFace*>*) faceGroupStore;
     bmStore<bmTreeNode>* t_nodeStore   = (bmStore<bmTreeNode>*) nodeStore;
     bmMaterial* t_material             = (bmMaterial*)material;
 
+#if CUDA
+    dim3 blocks ( (numFaces+BUILD_TREE_THREADS-1)/BUILD_TREE_THREADS );
+    dim3 threads( BUILD_TREE_THREADS );
     bmInsertTriangleInTree<<< blocks, threads >>>
     ( 
         vertices, (uint3*)indices, numFaces, meshIdx,
@@ -274,21 +290,41 @@ void bmInsertMeshInTree( const vec3* vertices,
         t_rootNode, t_faceStore, t_faceGroupStore, 
         t_nodeStore, t_material
     );
+#else
+    bDim.x  = BUILD_TREE_THREADS;
+    u32 blocks  = (numFaces+BUILD_TREE_THREADS-1)/BUILD_TREE_THREADS;
+    u32 threads = BUILD_TREE_THREADS;
+    for ( u32 b=0; b<blocks; b++ )
+    {
+        bIdx.x = b;
+        for ( u32 t=0; t<threads; t++ )
+        {
+            tIdx.x = t;
+            bmInsertTriangleInTree
+            ( 
+                vertices, (uint3*)indices, numFaces, meshIdx,
+                bMin, bMax, 
+                t_rootNode, t_faceStore, t_faceGroupStore, 
+                t_nodeStore, t_material
+            );
+        }
+    }
+#endif
 
 }
 
 // -------- bmMarchKernel -----------------------------------------------------------------------------------------------------------
 
 
-__global__ void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
+GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
                               const vec3* initialRays, u32 numRays,
                               u32* buffer, vec3 eye, mat3 orient,
                               const StaticMeshData* meshDataPtrs, u32 numMeshes )
 {
     assert(root && initialRays && buffer && meshDataPtrs);
 
-    u32 i = blockIdx.x * blockDim.x + threadIdx.x;
-    i = min(i, numRays-1);
+    u32 i = bIdx.x * bDim.x + tIdx.x;
+    i = _min(i, numRays-1);
 
     vec3 dir = initialRays[i];
     dir = orient*dir;
@@ -318,7 +354,7 @@ __global__ void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
                 if ( curNode->m_faces )
                 {
                     // check intersections ray triangle list
-                    u32 maxLoop = min(MAX_FACES_PER_BOX, curNode->m_faceInsertIdx);
+                    u32 maxLoop = _min((u32)MAX_FACES_PER_BOX, curNode->m_faceInsertIdx);
                     for ( u32 i=0; i<maxLoop; i++ )
                     {
                         bmFace* face = curNode->m_faces[i];
@@ -346,35 +382,35 @@ __global__ void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
                 assert( curNode->m_right );
                 u32 axis   = st->m_splitAxis;
                 u32 naxis  = (axis+1)%3;
-                vec3 min   = st->m_min;
-                vec3 max   = st->m_max;
-                float s    = .5f*(max[axis]+min[axis]);
+                vec3 _min   = st->m_min;
+                vec3 _max   = st->m_max;
+                float s    = .5f*(_max[axis]+_min[axis]);
                 vec3 p     = eye + boxDist*dir;
                 if ( p[axis] < s ) // on 'left' side
                 {
                     // push right first
-                    float t = min[axis];    // remember old min[axis]
-                    min[axis] = s;          // overwrite
+                    float t = _min[axis];    // remember old _min[axis]
+                    _min[axis] = s;          // overwrite
                     st = &stack[++top];     // push on stack
-                    st->init(curNode->m_right, min, max, naxis, 0);
+                    st->init(curNode->m_right, _min, _max, naxis, 0);
                     // push left now
-                    min[axis] = t;  // restore min[axis]
-                    max[axis] = s;  // set max[axis] for left
+                    _min[axis] = t;  // restore _min[axis]
+                    _max[axis] = s;  // set _max[axis] for left
                     st = &stack[++top];
-                    st->init(curNode->m_left, min, max, naxis, 0);
+                    st->init(curNode->m_left, _min, _max, naxis, 0);
                 }
                 else // on 'right' side
                 {
                     // push left first
-                    float t = max[axis];    // remember old min[axis]
-                    max[axis] = s;          // set max[axis] for left
+                    float t = _max[axis];    // remember old _min[axis]
+                    _max[axis] = s;          // set _max[axis] for left
                     st = &stack[++top];     // push on stack
-                    st->init(curNode->m_left, min, max, naxis, 0);
+                    st->init(curNode->m_left, _min, _max, naxis, 0);
                     // push right now
-                    min[axis] = s;          // set min[axis] split value       
-                    max[axis] = t;          // restore max[axis] value
+                    _min[axis] = s;          // set _min[axis] split value       
+                    _max[axis] = t;          // restore _max[axis] value
                     st = &stack[++top];     // push
-                    st->init(curNode->m_right, min, max, naxis, 0);
+                    st->init(curNode->m_right, _min, _max, naxis, 0);
                 }
             }
         }
@@ -399,6 +435,7 @@ void bmMarch(const void* root, const vec3& bMin, const vec3& bMax,
              const StaticMeshData* meshData, u32 numMeshes)
 {
     u32 numRays = width*height;
+#if CUDA
     dim3 blocks ( (numRays+MARCH_THREADS-1)/MARCH_THREADS );
     dim3 threads( MARCH_THREADS );
     bmMarchKernel<<< blocks, threads >>>
@@ -409,6 +446,28 @@ void bmMarch(const void* root, const vec3& bMin, const vec3& bMax,
         buffer, eye, orient,
         meshData, numMeshes
     );
+#else
+    bDim.x = MARCH_THREADS;
+    u32 blocks  = ( (numRays+MARCH_THREADS-1)/MARCH_THREADS );
+    u32 threads = ( MARCH_THREADS );
+    for ( u32 b=0; b<blocks; b++ )
+    {
+        bIdx.x = b;
+        for ( u32 t=0; t<threads; t++ )
+        {
+            tIdx.x = t;
+            bmMarchKernel
+            ( 
+                (bmTreeNode*)root,
+                bMin, bMax,
+                initialRays, numRays,
+                buffer, eye, orient,
+                meshData, numMeshes
+            );
+        }
+    }
+    
+#endif
 }
 
 

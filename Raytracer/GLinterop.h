@@ -61,7 +61,7 @@ namespace Beam
             glBufferData(GL_TEXTURE_BUFFER, width*height*sizeof(GLubyte)*4, nullptr, GL_STATIC_DRAW);
             glGenTextures(1, &m_GLtexture);
             glBindBuffer(GL_TEXTURE_BUFFER, 0);
-            m_renderTarget = IRenderTarget::registerOpenGLRT(m_GLbuffer, width, height, width*4);
+            m_renderTarget = IRenderTarget::registerGLTBO(m_GLbuffer, width, height, width*4);
             m_initialized  = true;
             return true;
         }

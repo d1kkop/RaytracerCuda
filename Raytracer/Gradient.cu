@@ -2,7 +2,7 @@
 using namespace Beam;
 
 
-__global__ void bmKernelColorGradient(unsigned int* buffer, int size)
+GLOBAL void bmKernelColorGradient(unsigned int* buffer, int size)
 {
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -45,6 +45,8 @@ __global__ void bmKernelColorGradient(unsigned int* buffer, int size)
 extern "C"
 void bmStartColorGradient(u32* buffer, u32 w, u32 h)
 {
+#if CUDA
     auto size = w*h;
     bmKernelColorGradient<<< (size+255)/256, 256 >>>(buffer, size);
+#endif
 }

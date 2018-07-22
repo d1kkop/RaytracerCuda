@@ -2,19 +2,21 @@
 using namespace Beam;
 
 
-__device__ float square( vec2 uv, vec2 hsize )
+DEVICE float square( vec2 uv, vec2 hsize )
 {
     vec2 dv = abs(uv) - hsize;
-    return min(0., max(dv.x, dv.y)) + length(max(dv,vec2(0.)));
+    float t = _min(0.f, _max(dv.x, dv.y));
+    float l = length(_max(dv,vec2(0.f)));
+    return float(t + l);
 }
 
-__device__ float rsquare( vec2 uv, vec2 hsize, float edge )
+DEVICE float rsquare( vec2 uv, vec2 hsize, float edge )
 {
     float d =square(uv,hsize);
     return d-edge;
 }
 
-__forceinline__ __device__ vec2 rotate2(vec2 v, float ang)
+FDEVICE vec2 rotate2(vec2 v, float ang)
 {
     float s = sin(ang);
     float c = cos(ang);
@@ -22,11 +24,11 @@ __forceinline__ __device__ vec2 rotate2(vec2 v, float ang)
 }
 
 
-__global__ void bmKernelBlob(u32* buffer, u32 w, u32 h, float time)
+GLOBAL void bmKernelBlob(u32* buffer, u32 w, u32 h, float time)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int size = w*h;
-    i = min(i,size);
+    i = _min(i,size);
 
     // vec2 uv = vec2( (i%w) - (w/2), (i/w) - (h/2) );
     vec2 uv = vec2( (i%w), (i/w) );
@@ -60,6 +62,8 @@ __global__ void bmKernelBlob(u32* buffer, u32 w, u32 h, float time)
 extern "C"
 void bmStartBlob(u32* buffer, int w, int h, float time)
 {
+#if CUDA
     auto size = w*h;
     bmKernelBlob<<< (size+255)/256, 256 >>>(buffer, w, h, time);
+#endif
 }

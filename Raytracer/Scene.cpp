@@ -11,7 +11,8 @@ using namespace Beam;
 
 extern "C"
 {
-    void bmResetScene(void* rootNode, void* faceStore, void* faceGroupStore, void* nodeStore,
+    void bmResetScene(void* rootNode, void* faceStore, 
+void* faceGroupStore, void* nodeStore,
                       void* faces, void* facePtrs, void* nodes,
                       u32 maxFaces, u32 maxFacePtrs, u32 maxNodes);
 
@@ -114,7 +115,7 @@ namespace Beam
            m_facesBuffer->ptr<void>(),
            m_facePtrsBuffer->ptr<void>(),
            m_nodesBuffer->ptr<void>(),
-            /* stores' max elements */
+            /* stores' _max elements */
            MaxFaces, MaxFaces, MaxNodes );
        
        for ( u32 i=0; i<m_staticMeshes.size(); i++ )

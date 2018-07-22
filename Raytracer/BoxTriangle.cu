@@ -47,14 +47,14 @@ using namespace std;
           dest[1]=v1[1]-v2[1]; \
           dest[2]=v1[2]-v2[2]; 
 
-#define FINDMINMAX(x0,x1,x2,min,max) \
-  min = max = x0;   \
-  if(x1<min) min=x1;\
-  if(x1>max) max=x1;\
-  if(x2<min) min=x2;\
-  if(x2>max) max=x2;
+#define FINDMINMAX(x0,x1,x2,_min,_max) \
+  _min = _max = x0;   \
+  if(x1<_min) _min=x1;\
+  if(x1>_max) _max=x1;\
+  if(x2<_min) _min=x2;\
+  if(x2>_max) _max=x2;
 
-__forceinline__ __device__
+FDEVICE
 int planeBoxOverlap(float normal[3], float vert[3], float maxbox[3])	// -NJMP-
 {
   int q;
@@ -83,16 +83,16 @@ int planeBoxOverlap(float normal[3], float vert[3], float maxbox[3])	// -NJMP-
 #define AXISTEST_X01(a, b, fa, fb)			   \
 	p0 = a*v0[Y] - b*v0[Z];			       	   \
 	p2 = a*v2[Y] - b*v2[Z];			       	   \
-    if(p0<p2) {min=p0; max=p2;} else {min=p2; max=p0;} \
+    if(p0<p2) {_min=p0; _max=p2;} else {_min=p2; _max=p0;} \
 	rad = fa * boxhalfsize[Y] + fb * boxhalfsize[Z];   \
-	if(min>rad || max<-rad) return 0;
+	if(_min>rad || _max<-rad) return 0;
 
 #define AXISTEST_X2(a, b, fa, fb)			   \
 	p0 = a*v0[Y] - b*v0[Z];			           \
 	p1 = a*v1[Y] - b*v1[Z];			       	   \
-    if(p0<p1) {min=p0; max=p1;} else {min=p1; max=p0;} \
+    if(p0<p1) {_min=p0; _max=p1;} else {_min=p1; _max=p0;} \
 	rad = fa * boxhalfsize[Y] + fb * boxhalfsize[Z];   \
-	if(min>rad || max<-rad) return 0;
+	if(_min>rad || _max<-rad) return 0;
 
 
 /*======================== Y-tests ========================*/
@@ -100,18 +100,18 @@ int planeBoxOverlap(float normal[3], float vert[3], float maxbox[3])	// -NJMP-
 #define AXISTEST_Y02(a, b, fa, fb)			   \
 	p0 = -a*v0[X] + b*v0[Z];		      	   \
 	p2 = -a*v2[X] + b*v2[Z];	       	       	   \
-    if(p0<p2) {min=p0; max=p2;} else {min=p2; max=p0;} \
+    if(p0<p2) {_min=p0; _max=p2;} else {_min=p2; _max=p0;} \
 	rad = fa * boxhalfsize[X] + fb * boxhalfsize[Z];   \
-	if(min>rad || max<-rad) return 0;
+	if(_min>rad || _max<-rad) return 0;
 
 
 
 #define AXISTEST_Y1(a, b, fa, fb)			   \
 	p0 = -a*v0[X] + b*v0[Z];		      	   \
 	p1 = -a*v1[X] + b*v1[Z];	     	       	   \
-    if(p0<p1) {min=p0; max=p1;} else {min=p1; max=p0;} \
+    if(p0<p1) {_min=p0; _max=p1;} else {_min=p1; _max=p0;} \
 	rad = fa * boxhalfsize[X] + fb * boxhalfsize[Z];   \
-	if(min>rad || max<-rad) return 0;
+	if(_min>rad || _max<-rad) return 0;
 
 /*======================== Z-tests ========================*/
 
@@ -119,19 +119,19 @@ int planeBoxOverlap(float normal[3], float vert[3], float maxbox[3])	// -NJMP-
 #define AXISTEST_Z12(a, b, fa, fb)			   \
 	p1 = a*v1[X] - b*v1[Y];			           \
 	p2 = a*v2[X] - b*v2[Y];			       	   \
-    if(p2<p1) {min=p2; max=p1;} else {min=p1; max=p2;} \
+    if(p2<p1) {_min=p2; _max=p1;} else {_min=p1; _max=p2;} \
 	rad = fa * boxhalfsize[X] + fb * boxhalfsize[Y];   \
-	if(min>rad || max<-rad) return 0;
+	if(_min>rad || _max<-rad) return 0;
 
 #define AXISTEST_Z0(a, b, fa, fb)			   \
 	p0 = a*v0[X] - b*v0[Y];				   \
 	p1 = a*v1[X] - b*v1[Y];			           \
-    if(p0<p1) {min=p0; max=p1;} else {min=p1; max=p0;} \
+    if(p0<p1) {_min=p0; _max=p1;} else {_min=p1; _max=p0;} \
 	rad = fa * boxhalfsize[X] + fb * boxhalfsize[Y];   \
-	if(min>rad || max<-rad) return 0;
+	if(_min>rad || _max<-rad) return 0;
 
 
-__forceinline__ __device__
+FDEVICE
 int triBoxOverlap(float* boxcenter,float* boxhalfsize,vec3 triverts[3])
 {
   /*    use separating axis theorem to test overlap between triangle and box */
@@ -144,7 +144,7 @@ int triBoxOverlap(float* boxcenter,float* boxhalfsize,vec3 triverts[3])
 
    float v0[3],v1[3],v2[3];
 //   float axis[3];
-   float min,max,p0,p1,p2,rad,fex,fey,fez;		// -NJMP- "d" local variable removed
+   float _min,_max,p0,p1,p2,rad,fex,fey,fez;		// -NJMP- "d" local variable removed
    float normal[3],e0[3],e1[3],e2[3];
 
    /* This is the fastest branch on Sun */
@@ -188,24 +188,24 @@ int triBoxOverlap(float* boxcenter,float* boxhalfsize,vec3 triverts[3])
 
    /* Bullet 1: */
    /*  first test overlap in the {x,y,z}-directions */
-   /*  find min, max of the triangle each direction, and test for overlap in */
+   /*  find _min, _max of the triangle each direction, and test for overlap in */
    /*  that direction -- this is equivalent to testing a minimal AABB around */
    /*  the triangle against the AABB */
 
    /* test in X-direction */
 
-   FINDMINMAX(v0[X],v1[X],v2[X],min,max);
-   if(min>boxhalfsize[X] || max<-boxhalfsize[X]) return 0;
+   FINDMINMAX(v0[X],v1[X],v2[X],_min,_max);
+   if(_min>boxhalfsize[X] || _max<-boxhalfsize[X]) return 0;
 
    /* test in Y-direction */
 
-   FINDMINMAX(v0[Y],v1[Y],v2[Y],min,max);
-   if(min>boxhalfsize[Y] || max<-boxhalfsize[Y]) return 0;
+   FINDMINMAX(v0[Y],v1[Y],v2[Y],_min,_max);
+   if(_min>boxhalfsize[Y] || _max<-boxhalfsize[Y]) return 0;
 
    /* test in Z-direction */
 
-   FINDMINMAX(v0[Z],v1[Z],v2[Z],min,max);
-   if(min>boxhalfsize[Z] || max<-boxhalfsize[Z]) return 0;
+   FINDMINMAX(v0[Z],v1[Z],v2[Z],_min,_max);
+   if(_min>boxhalfsize[Z] || _max<-boxhalfsize[Z]) return 0;
 
    /* Bullet 2: */
    /*  test if the box intersects the plane of the triangle */

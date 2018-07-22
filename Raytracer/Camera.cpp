@@ -91,25 +91,28 @@ namespace Beam
 
     u32 Camera::traceScene(const float* eye3, const float* orient3x3, sptr<IScene>& scene)
     {
+        /* Sanitize input */
         if ( !eye3 || !orient3x3 || !scene || m_width==0 || m_height==0 ||
              !m_initialRays )
         {
             return ERROR_INVALID_PARAMETER;
         }
 
+        /* Get global render target */
         auto rt = RenderTarget::get();
         if ( !rt )
         {
             return ERROR_NO_RENDER_TARGET;
         }
 
-        // upate out of date mesh ptrs (if meshes were added/removed)
+        /* Update mesh ptrs gpu structure if meshes were added/removed. */
         Scene* s = sc<Scene*>(scene.get());
         s->updateMeshPtrs();
 
+        /* Ensure RT and Cam have same dimensions. */
         if ( rt->width() != m_width || rt->height() != m_height )
         {
-            return ERROR_MISMATCH_RT_DIMENSION_AND_CAMERA;
+            return ERROR_RT_CAM_MISMATCH;
         }
 
         const vec3 eye      = *rc<const vec3*>(eye3);
@@ -118,7 +121,7 @@ namespace Beam
         bmMarch
         ( 
             s->rootNode()->ptr<void>(),
-            s->min(), s->max(),
+            s->_min(), s->_max(),
             m_initialRays->ptr<const vec3>(),
             rt->buffer<u32>(),
             rt->pitch(),

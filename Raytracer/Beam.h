@@ -10,7 +10,7 @@ namespace Beam
     constexpr u32 ERROR_INVALID_PARAMETER   = 2;
     constexpr u32 ERROR_GPU_ALLOC_FAIL      = 3;
     constexpr u32 ERROR_INVALID_FORMAT      = 4;
-    constexpr u32 ERROR_MISMATCH_RT_DIMENSION_AND_CAMERA = 5;
+    constexpr u32 ERROR_RT_CAM_MISMATCH     = 5;
     constexpr u32 ERROR_UNLOCK_FIRST        = 6;
     constexpr u32 ERROR_LOCK_FIRST          = 7;
     constexpr u32 ERROR_NO_RENDER_TARGET    = 8;
@@ -19,20 +19,21 @@ namespace Beam
     constexpr u32 VERTEX_DATA_POSITION      = 0;
     constexpr u32 VERTEX_DATA_NORMAL        = 1;
     constexpr u32 VERTEX_DATA_UV1           = 2;
-    constexpr u32 VERTEX_DATA_UV2           = 4;
-    constexpr u32 VERTEX_DATA_TANGENT       = 5;
-    constexpr u32 VERTEX_DATA_BITANGENT     = 6;
-    constexpr u32 VERTEX_DATA_EXTRA1        = 7;
-    constexpr u32 VERTEX_DATA_EXTRA2        = 8;
-    constexpr u32 VERTEX_DATA_EXTRA3        = 9;
-    constexpr u32 VERTEX_DATA_EXTRA4        = 10;
-    constexpr u32 VERTEX_DATA_COUNT         = 11; // This is not a slot
+    constexpr u32 VERTEX_DATA_UV2           = 3;
+    constexpr u32 VERTEX_DATA_TANGENT       = 4;
+    constexpr u32 VERTEX_DATA_BITANGENT     = 5;
+    constexpr u32 VERTEX_DATA_EXTRA1        = 6;
+    constexpr u32 VERTEX_DATA_EXTRA2        = 7;
+    constexpr u32 VERTEX_DATA_EXTRA3        = 8;
+    constexpr u32 VERTEX_DATA_EXTRA4        = 9;
+    constexpr u32 VERTEX_DATA_COUNT         = 10; // This is not a slot
 
 
     class IRenderTarget
     {
     public:
-        static sptr<IRenderTarget> registerOpenGLRT(u32 rtId, u32 width, u32 height, u32 pitch);
+        // Register OpenGL TextureBufferObject
+        static sptr<IRenderTarget> registerGLTBO(u32 rtId, u32 width, u32 height, u32 pitch);
         virtual void* buffer() const = 0;
         virtual u32 pitch() const  = 0;
         virtual u32 width() const  = 0;

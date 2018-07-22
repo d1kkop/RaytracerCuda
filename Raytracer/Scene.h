@@ -18,8 +18,8 @@ namespace Beam
         void updateMeshPtrs();
         void updateGPUScene() override;
 
-        const glm::vec3& min() const { return m_min; }
-        const glm::vec3& max() const { return m_max; }
+        const glm::vec3& _min() const { return m_min; }
+        const glm::vec3& _max() const { return m_max; }
 
         const sptr<DeviceBuffer>& rootNode() const { return m_rootNode; }
         const sptr<DeviceBuffer>& staticMeshPtrs() const { return m_staticMeshPtrs; }

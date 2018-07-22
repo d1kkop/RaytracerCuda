@@ -33,12 +33,12 @@ extern int triBoxOverlap(float boxcenter[3],float boxhalfsize[3],float triverts[
 //    float tmin = Aos::maxElem(tmin1);
 //    float tmax = Aos::minElem(tmax1);
 //
-//    return tmax >= std::max(ray.m_min, tmin) && tmin < ray.m_max;
+//    return tmax >= std::_max(ray.m_min, tmin) && tmin < ray.m_max;
 //}
 
 
 
-__forceinline__ __device__
+FDEVICE
 bool intersect( 
     const vec3 &orig, const vec3 &dir, 
     const vec3 &v0, const vec3 &v1, const vec3 &v2, 
@@ -74,12 +74,12 @@ bool intersect(
 } 
 
 
-__global__ void bmKernelTrace(u32* buffer,
+GLOBAL void bmKernelTrace(u32* buffer,
                               vec3 eye, mat3 orient, const vec3* initialRays, u32 numRays,
                               const StaticMeshData* meshDataPtrs, u32 numMeshes, u32 time )
 {
     u32 i = blockIdx.x * blockDim.x + threadIdx.x;
-    i = min(i, numRays-1);
+    i = _min(i, numRays-1);
 
     vec3 dir = initialRays[i];
     dir = orient*dir;
@@ -91,7 +91,7 @@ __global__ void bmKernelTrace(u32* buffer,
     u32 finalColor = 50;
 
     // intersect test
-#pragma unroll
+//#pragma unroll
     for ( u32 i=0; i<numMeshes; i++ )
     {
         const StaticMeshData* mPtr = meshDataPtrs + i;
@@ -99,7 +99,7 @@ __global__ void bmKernelTrace(u32* buffer,
         float*  vertices = mPtr->m_vertexData[VERTEX_DATA_POSITION]; 
         u32 vertexSize   = mPtr->m_vertexDataSizes[VERTEX_DATA_POSITION]; 
         //11112
-    #pragma unroll
+   // #pragma unroll
         for ( u32 f=0; f<10; f+=3)
         {
             uint3 fidx = *(uint3*)(indices + f);
@@ -157,10 +157,10 @@ __global__ void bmKernelTrace(u32* buffer,
 }
 
 
-__global__ void bmKernelClear2(u32* buffer, u32 maxAddr, u32 clearColor)
+GLOBAL void bmKernelClear2(u32* buffer, u32 maxAddr, u32 clearColor)
 {
     u32 addr = blockIdx.x * blockDim.x + threadIdx.x;
-    addr = min(addr, maxAddr-1);
+    addr = _min(addr, maxAddr-1);
     uint4* bptr = (uint4*)buffer;
     bptr[addr] = make_uint4(clearColor, clearColor,clearColor, clearColor);
     //buffer[addr] = clearColor;
@@ -172,11 +172,14 @@ void bmStartTrace(u32* buffer, u32 pitch, u32 width, u32 height,
                   const vec3& eye, const mat3& orient, const vec3* initialRays,
                   const StaticMeshData* meshData, u32 numMeshes)
 {
+
+#if CUDA
     u32 maxAddr  = width*height;///4-1;
     auto numRays = maxAddr;
     static u32 i = 0;
     i++;
     bmKernelTrace<<< (numRays+1023)/1024, 1024 >>>( buffer, eye, orient, initialRays, numRays, meshData, numMeshes, i );
+#endif
 
   //  bmKernelClear2<<< (numRays+1023)/1024, 1024 >>>( buffer, pitch, width, 100 );
   //  bmKernelClear<<< (numRays+1023)/1024, 1024  >>>( buffer, maxAddr, 100<<16 );

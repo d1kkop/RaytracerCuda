@@ -13,7 +13,7 @@ using namespace Beam;
 
 namespace TestProgram
 {
-    bool Model::load(const std::string& name, sptr<IScene>& toScene)
+    bool Model::load(const std::string& name, sptr<IScene>& toScene, int numAdds)
     {
         // Create an instance of the Importer class
         Importer importer;
@@ -36,7 +36,8 @@ namespace TestProgram
         {
         	const aiMesh* mesh  = scene->mMeshes[i];
             sptr<IMesh> gpuMesh = IMesh::create();
-            toScene->addMesh( gpuMesh );
+            for ( int j=0; j<numAdds; j++ )
+                toScene->addMesh( gpuMesh );
             u32 err=0;
             // deform indices
             u32* indices = new u32[mesh->mNumFaces*3];

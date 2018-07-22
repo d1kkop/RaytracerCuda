@@ -78,10 +78,12 @@ namespace TestProgram
 
         u32 err=0;
         m_scene = IScene::create();
-        if ( !Model::load(R"(D:\_Programming\2018\RaytracerCuda\Content/f16.obj)", m_scene) )
+
+        if ( !Model::load(R"(D:\_Programming\2018\RaytracerCuda\Content/armadillo.obj)", m_scene, 1) )
         {
             cout << "Failed to load bunny" << endl;
         }
+
 
         //sptr<IMesh> mesh = IMesh::create();
         //vec3* vertices = new vec3[4];
@@ -178,7 +180,7 @@ namespace TestProgram
         u32 err=0;
 
         static bool first=true;
-        if ( first )
+    //    if ( first )
         {
             first = false;
             ProfileItem pigpuScene(R"(Scene)");
@@ -186,17 +188,17 @@ namespace TestProgram
             pushProfile(pigpuScene);
         }
 
-        //ProfileItem piu("Unlock");
-        //m_bufferObjIdx = (m_bufferObjIdx+1)%NUM_RT;
-        //err=m_textureBufferObject[m_bufferObjIdx].renderTarget()->unlock();
-        //assert(err==0);
-        //pushProfile(piu);
+        ProfileItem piu("Unlock");
+        m_bufferObjIdx = (m_bufferObjIdx+1)%NUM_RT;
+        err=m_textureBufferObject[m_bufferObjIdx].renderTarget()->unlock();
+        assert(err==0);
+        pushProfile(piu);
 
-        //ProfileItem pil("Lock");
-        //auto& rt = m_textureBufferObject[m_bufferObjIdx].renderTarget();
-        //err = rt->lock();
-        //assert(err==0);
-        //pushProfile(pil);
+        ProfileItem pil("Lock");
+        auto& rt = m_textureBufferObject[m_bufferObjIdx].renderTarget();
+        err = rt->lock();
+        assert(err==0);
+        pushProfile(pil);
 
         // -- Clear --
         {
@@ -210,12 +212,12 @@ namespace TestProgram
 
         // -- Trace scene --
         ProfileItem piTrace("Trace");
-        {
-            vec3 eye    = vec3(0, 0, -2.1f);
-            mat3 orient = mat3(1.f);
-            err = m_camera->traceScene(&eye.x, &orient[0][0], m_scene);
-            assert(err==0);
-        }
+        //{
+        //    vec3 eye    = vec3(0, 0, -2.1f);
+        //    mat3 orient = mat3(1.f);
+        //    err = m_camera->traceScene(&eye.x, &orient[0][0], m_scene);
+        //    assert(err==0);
+        //}
         pushProfile(piTrace);
 
       //  cudaDeviceSynchronize();
@@ -225,7 +227,6 @@ namespace TestProgram
         ProfileItem pir("Render");
         m_glRenderer.render(m_textureBufferObject[m_bufferObjIdx]);
         pushProfile(pir);
-
 
   /*      ProfileItem picusync("CudaSync");
         cudaDeviceSynchronize();
