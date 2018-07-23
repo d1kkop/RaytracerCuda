@@ -97,8 +97,7 @@
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
-      <Defines>
-      </Defines>
+      <Defines>NDEBUG</Defines>
       <FastMath>true</FastMath>
     </CudaCompile>
   </ItemDefinitionGroup>
@@ -132,7 +131,6 @@
     <ClInclude Include="BuildTree.cuh" />
     <ClInclude Include="CudaComon.cuh" />
     <ClInclude Include="DeviceBuffer.h" />
-    <ClInclude Include="CudaHelp.h" />
     <ClInclude Include="Beam.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="GLinterop.h" />

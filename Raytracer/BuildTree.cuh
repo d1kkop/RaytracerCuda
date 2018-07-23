@@ -12,8 +12,9 @@ using namespace Beam;
 #define MARCH_THREADS 256
 
 // tree memory
-#define BUILD_TREE_MAX_DEPTH 38
-#define MAX_FACES_PER_BOX 8
+#define BUILD_TREE_MAX_DEPTH 32
+#define TREE_SEARCH_DEPTH 32
+#define MAX_FACES_PER_BOX 128
 
 
 struct bmMaterial
@@ -26,8 +27,8 @@ struct bmFace
 {
     uint4 m_index; // x,y,z indices, w meshIdx
     bmMaterial* m_material;
-    DEVICE float intersect(const vec3& eye, const vec3& dir, const StaticMeshData* meshDataPtrs, u32 numMeshes, float& u, float& v);
-    DEVICE vec4 interpolate(float u, float v, const StaticMeshData* meshDataPtrs, u32 dataIdx);
+    FDEVICE float intersect(const vec3& eye, const vec3& dir, const StaticMeshData* meshDataPtrs, u32 numMeshes, float& u, float& v);
+    FDEVICE vec4 interpolate(float u, float v, const StaticMeshData* meshDataPtrs, u32 dataIdx);
 };
 
 
@@ -61,9 +62,9 @@ struct bmTreeNode
     bmTreeNode* m_right;
     u32 m_faceInsertIdx;
 
-    DEVICE void init();
-    DEVICE void split(bmStore<bmTreeNode>* store);
-    DEVICE void insertFace(bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat);
+    FDEVICE void init();
+    FDEVICE void split(bmStore<bmTreeNode>* store);
+    FDEVICE void insertFace(bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat);
 };
 
 
@@ -74,8 +75,8 @@ struct bmStackNode
     u32 m_depth;
     u32 m_splitAxis;
 
-    DEVICE void init(bmTreeNode* node, const vec3& bMin, const vec3& bMax, u32 splitAxis, u32 depth);
-    DEVICE bool intersect(const vec3& triMin, const vec3& triMax);
+    FDEVICE void init(bmTreeNode* node, const vec3& bMin, const vec3& bMax, u32 splitAxis, u32 depth);
+    FDEVICE bool intersect(const vec3& triMin, const vec3& triMax);
 };
 
 

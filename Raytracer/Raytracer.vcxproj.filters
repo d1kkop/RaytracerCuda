@@ -24,9 +24,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CudaHelp.h">
-      <Filter>Cuda</Filter>
-    </ClInclude>
     <ClInclude Include="Beam.h" />
     <ClInclude Include="Types.h" />
     <ClInclude Include="Gradient.h">

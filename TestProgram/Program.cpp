@@ -4,8 +4,8 @@
 #include <cassert>
 #include <SDL.h>
 //#include <SDL_opengl.h>
-#include "../Raytracer/CudaHelp.h"
 #include "../Raytracer/GLinterop.h"
+#include "../Raytracer/CudaComon.cuh"
 #include "glm/common.hpp"
 #include "glm/geometric.hpp"
 #include "glm/vec3.hpp"
@@ -61,7 +61,7 @@ namespace TestProgram
         int count=0;
         CUDA_CALL( cudaGetDeviceCount( &count ) );
 
-        CUDA_CALL( cudaSetDevice( count-1 ) );
+        CUDA_CALL( cudaSetDevice( 0/*count-1 */ ) );
 
         bool succes; 
         succes = m_glRenderer.init(width, height);
@@ -180,11 +180,12 @@ namespace TestProgram
         u32 err=0;
 
         static bool first=true;
-    //    if ( first )
+        if ( first )
         {
-            first = false;
+         //   first = false;
             ProfileItem pigpuScene(R"(Scene)");
             m_scene->updateGPUScene();
+            cudaDeviceSynchronize(); // DEBUG
             pushProfile(pigpuScene);
         }
 
@@ -218,6 +219,7 @@ namespace TestProgram
             err = m_camera->traceScene(&eye.x, &orient[0][0], m_scene);
             assert(err==0);
         } 
+        cudaDeviceSynchronize(); // DEBUG
         pushProfile(piTrace);
 
       //  cudaDeviceSynchronize();

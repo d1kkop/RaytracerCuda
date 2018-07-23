@@ -1,5 +1,4 @@
 #include "BuildTree.cuh"
-#include "CudaHelp.h"
 
 #define NUM_RESET_THREADS 256
 #define MAX_HASH_ELEMENTS 65536

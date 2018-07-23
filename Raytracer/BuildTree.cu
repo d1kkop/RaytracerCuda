@@ -1,10 +1,9 @@
 #include "BuildTree.cuh"
-#include "CudaHelp.h"
 
 
 // -------- bmFace ---------------------------------------------------------------------------------------------------------------
 
-DEVICE float bmFace::intersect(const vec3& eye, const vec3& dir, const StaticMeshData* meshDataPtrs, u32 numMeshes, float& u, float& v)
+FDEVICE float bmFace::intersect(const vec3& eye, const vec3& dir, const StaticMeshData* meshDataPtrs, u32 numMeshes, float& u, float& v)
 {
     assert( meshDataPtrs );
     assert( m_index.w < numMeshes );
@@ -29,7 +28,7 @@ CONSTANT fGetData c_getData[4] =
     &getData4
 };
 
-DEVICE vec4 bmFace::interpolate(float u, float v, const StaticMeshData* meshDataPtrs, u32 dataIdx)
+FDEVICE vec4 bmFace::interpolate(float u, float v, const StaticMeshData* meshDataPtrs, u32 dataIdx)
 {
     assert( meshDataPtrs );
     assert( dataIdx < VERTEX_DATA_COUNT );
@@ -49,14 +48,14 @@ DEVICE vec4 bmFace::interpolate(float u, float v, const StaticMeshData* meshData
 
 // -------- bmTreeNode -----------------------------------------------------------------------------------------------------------
 
-DEVICE void bmTreeNode::init()
+FDEVICE void bmTreeNode::init()
 {
     m_left  = nullptr;
     m_right = nullptr;
     m_faceInsertIdx = 0;
 }
 
-DEVICE void bmTreeNode::split(bmStore<bmTreeNode>* store)
+FDEVICE void bmTreeNode::split(bmStore<bmTreeNode>* store)
 {
     if ( !(m_left && m_right) )
     {
@@ -73,7 +72,7 @@ DEVICE void bmTreeNode::split(bmStore<bmTreeNode>* store)
     assert( m_right );
 }
 
-DEVICE void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat )
+FDEVICE void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat )
 {
     bmFace* face  = faceStore->getNew();
     face->m_index = make_uint4(faceIdx.x, faceIdx.y, faceIdx.z, meshIdx);
@@ -230,7 +229,7 @@ CONSTANT fGetNewAABBAxis c_getNewAABBAxis[3] =
 };
 
 // NOTE: Deliberately pass bMin and bMax by value as stack memory is used by stLeft and stRight.
-DEVICE void splitOrAdd( bmTreeNode* node, vec3 bMin, vec3 bMax, u32 splitAxis, u32 ndepth,
+FDEVICE void splitOrAdd( bmTreeNode* node, vec3 bMin, vec3 bMax, u32 splitAxis, u32 ndepth,
                         bmStackNode* stLeft, bmStackNode* stRight, bmStore<bmTreeNode>* nodeStore )
 {
     assert( node );
@@ -242,7 +241,7 @@ DEVICE void splitOrAdd( bmTreeNode* node, vec3 bMin, vec3 bMax, u32 splitAxis, u
     vec3 lMax, rMin;
     u32 naxis;
     c_getNewAABBAxis[splitAxis]( s, bMin, bMax, lMax, rMin, naxis );
-    stLeft->init ( node->m_left,  bMin, lMax, naxis, ndepth );
+    stLeft ->init( node->m_left,  bMin, lMax, naxis, ndepth );
     stRight->init( node->m_right, rMin, bMax, naxis, ndepth );
     //switch ( splitAxis )
     //{
@@ -263,6 +262,55 @@ DEVICE void splitOrAdd( bmTreeNode* node, vec3 bMin, vec3 bMax, u32 splitAxis, u
     //}
     //assert(false);
 }
+
+using fIntersect = void (*)( bmStackNode* stack, i32& top, 
+                            bmStackNode* st, bmStore<bmFace>* faceStore,
+                                        bmStore<bmFace*>* faceGroupStore,
+                                        bmStore<bmTreeNode>* nodeStore, 
+                                        bmMaterial* mat,
+                                        u32 meshIdx, uint3& id);
+
+FDEVICE void fIntersectReal(bmStackNode* stack, i32& top,
+                            bmStackNode* stNode, bmStore<bmFace>* faceStore,
+                            bmStore<bmFace*>* faceGroupStore,
+                            bmStore<bmTreeNode>* nodeStore,
+                            bmMaterial* mat,
+                            u32 meshIdx, uint3& id )
+{
+    if ( stNode->m_depth == BUILD_TREE_MAX_DEPTH-1 ) // <-- correct, must be build_tree_max_depth
+    {
+    #if _DEBUG
+        bmValidateAABB( stNode->m_min, stNode->m_max );
+    //    bmPrintAABB( stNode->m_min, stNode->m_max );
+    #endif
+        stNode->m_node->insertFace( faceStore, faceGroupStore, meshIdx, id, mat );
+    }
+    else
+    {
+        assert( top+2 < TREE_SEARCH_DEPTH );
+        bmStackNode* l = &stack[++top];
+        bmStackNode* r = &stack[++top];
+        splitOrAdd( stNode->m_node, stNode->m_min, stNode->m_max, stNode->m_splitAxis, stNode->m_depth+1, l, r, nodeStore );
+        assert( l->m_node );
+        assert( r->m_node );
+    }
+}
+
+FDEVICE void fIntersectFake(bmStackNode* stack, i32& top,
+                            bmStackNode* st, bmStore<bmFace>* faceStore,
+                            bmStore<bmFace*>* faceGroupStore,
+                            bmStore<bmTreeNode>* nodeStore,
+                            bmMaterial* mat,
+                            u32 meshIdx, uint3& id)
+{
+
+}
+
+CONSTANT fIntersect c_intersect[2]=
+{
+    &fIntersectFake,
+    &fIntersectReal
+};
 
 GLOBAL void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces, 
                                         u32 numFaces, u32 meshIdx,
@@ -291,9 +339,9 @@ GLOBAL void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces,
         triMax[i] = _max(v[0][i], _max(v[1][i], v[2][i]));
     }
 
-   // __shared__ bmStackNode stack_shared[BUILD_TREE_THREADS][BUILD_TREE_MAX_DEPTH];
-   // bmStackNode* stack = stack_shared[tIdx];
-    bmStackNode stack[BUILD_TREE_MAX_DEPTH];
+ //   __shared__ bmStackNode stack_shared[BUILD_TREE_THREADS][TREE_SEARCH_DEPTH];
+ //   bmStackNode* stack = stack_shared[tx];
+    bmStackNode stack[TREE_SEARCH_DEPTH];
     stack[0].init( root, bMin, bMax, 0, 0 );
     i32 top = 0;
 
@@ -305,9 +353,11 @@ GLOBAL void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces,
     #if _DEBUG
         bmValidateAABB( triMin, triMax );
     #endif
+     //   bool b = ( stNode->intersect( triMin, triMax ) );
+     //   c_intersect[ b&1 ]( stack, top, stNode, faceStore, faceGroupStore, nodeStore, mat, meshIdx, id );
         if ( stNode->intersect( triMin, triMax ) )
         {
-           if ( stNode->m_depth == BUILD_TREE_MAX_DEPTH-1 )
+           if ( stNode->m_depth == BUILD_TREE_MAX_DEPTH-1 ) // <-- correct, must be build_tree_max_depth
            {
            #if _DEBUG
                bmValidateAABB( stNode->m_min, stNode->m_max );
@@ -317,7 +367,7 @@ GLOBAL void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces,
             }
             else
             {
-                assert( top+2 < BUILD_TREE_MAX_DEPTH );
+                assert( top+2 < TREE_SEARCH_DEPTH );
                 bmStackNode* l = &stack[++top];
                 bmStackNode* r = &stack[++top];
                 splitOrAdd( stNode->m_node, stNode->m_min, stNode->m_max, stNode->m_splitAxis, stNode->m_depth+1, l, r, nodeStore );
@@ -398,8 +448,11 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
     dir = orient*dir;
     vec3 invDir(1.f/dir.x, 1.f/dir.y, 1.f/dir.z);
 
-    bmStackNode stack[BUILD_TREE_MAX_DEPTH];
+//    __shared__ bmStackNode s_stack[BUILD_TREE_THREADS][TREE_SEARCH_DEPTH];
+//    bmStackNode* stack = s_stack[tIdx.x];
+    bmStackNode stack[TREE_SEARCH_DEPTH];
     bmStackNode* st = &stack[0];
+
     st->init( root, bMin, bMax, 0, 0 );
     i32 top  = 0;
     float dClosest = FLT_MAX;
@@ -451,7 +504,7 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
             else
             {
                 assert( st );
-                assert( top+2 < BUILD_TREE_MAX_DEPTH );
+                assert( top+2 < TREE_SEARCH_DEPTH );
                 assert( curNode->m_left );
                 assert( curNode->m_right );
                 u32 axis   = st->m_splitAxis;

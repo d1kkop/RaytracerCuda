@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <cassert>
 #include <cuda_runtime.h>
+#include <iostream>
 #include "glm/common.hpp"
 #include "glm/geometric.hpp"
 #define GLM_ENABLE_EXPERIMENTAL
@@ -14,14 +15,13 @@ using namespace glm;
 constexpr float kEpsilon = 0.000001f;
 
 
-#define CUDA 0
+#define CUDA 1
 
 #if CUDA 
 
     #define GLOBAL __global__
-    #define FORCEINLINE __forceinline__
     #define DEVICE __device__
-    #define FDEVICE FORCEINLINE DEVICE
+    #define FDEVICE __forceinline__ DEVICE
     #define THREAD_FENCE() __threadfence()
     #define CONSTANT __constant__
     #define INLINE
@@ -36,7 +36,6 @@ constexpr float kEpsilon = 0.000001f;
 #else
 
     #define GLOBAL
-    #define FORCEINLINE
     #define DEVICE
     #define FDEVICE
     #define THREAD_FENCE()
@@ -54,6 +53,18 @@ constexpr float kEpsilon = 0.000001f;
     template <typename T> T atomicCAS2(T* lk, T old, T nw) { *lk = nw; return old; }
 
 #endif
+
+
+#define CUDA_CALL( expr ) \
+{ \
+	auto status=expr; \
+	if ( status != cudaSuccess )  \
+	{ \
+		std::cout << "CUDA ERROR: " << (status) << " " << cudaGetErrorString(status) << std::endl; \
+		assert( 0 ); \
+		exit( 1 ); \
+	} \
+}
 
 
 FDEVICE INLINE i32 _min(i32 a, i32 b) { return a < b ? a : b; }

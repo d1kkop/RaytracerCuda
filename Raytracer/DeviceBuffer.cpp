@@ -1,5 +1,5 @@
 #include "DeviceBuffer.h"
-#include "CudaHelp.h"
+#include "CudaComon.cuh"
 
 
 namespace Beam

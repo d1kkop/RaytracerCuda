@@ -1,6 +1,6 @@
 #pragma once
 #include "Beam.h"
-#include "CudaHelp.h"
+#include "CudaComon.cuh"
 
 namespace Beam
 {

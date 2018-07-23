@@ -1,5 +1,4 @@
 #include "Program.h"
-#include "../Raytracer/CudaHelp.h"
 using namespace TestProgram;
 
 int main(int argc, char** argv)
