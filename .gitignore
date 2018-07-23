@@ -14,3 +14,5 @@
 /vc140.pdb
 *.vspx
 *.pdb
+/Raytracer/x64/Profile
+/TestProgram/x64/Profile

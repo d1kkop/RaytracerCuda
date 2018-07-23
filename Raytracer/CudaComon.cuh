@@ -14,7 +14,7 @@ using namespace glm;
 constexpr float kEpsilon = 0.000001f;
 
 
-#define CUDA 1
+#define CUDA 0
 
 #if CUDA 
 
@@ -110,26 +110,29 @@ float bmTriIntersect( const vec3 &orig, const vec3 &dir,
     vec3 pvec = cross(dir, v0v2); 
     float det = dot(v0v1, pvec); 
 
-#ifdef CULLING 
-    // if the determinant is negative the triangle is backfacing
-    // if the determinant is close to 0, the ray misses the triangle
-    if (det < kEpsilon) return FLT_MAX;
-#else 
-    // ray and triangle are parallel if det is close to 0
-    if (fabs(det) < kEpsilon) return FLT_MAX; 
-#endif 
-    float invDet = 1.f / det; 
- 
+//#ifdef CULLING 
+//    // if the determinant is negative the triangle is backfacing
+//    // if the determinant is close to 0, the ray misses the triangle
+//    if (det < kEpsilon) return FLT_MAX;
+//#else 
+//    // ray and triangle are parallel if det is close to 0
+//    if (fabs(det) < kEpsilon) return FLT_MAX; 
+//#endif 
+//    float invDet = 1.f / det; 
+// 
+
+    // IF determinate is small or zero, invDet will be large or inifnity, in either case the the computations remain valid.
+
+    float invDet = 1.f/det;
     vec3 tvec = orig - v0; 
-    u = dot(tvec, pvec) * invDet; 
-    if (u < 0 || u > 1) return FLT_MAX;
- 
     vec3 qvec = cross(tvec, v0v1); 
+    u = dot(tvec, pvec) * invDet; 
     v = dot(dir, qvec) * invDet; 
-    if (v < 0 || u + v > 1) return FLT_MAX; 
- 
-    float dist = dot(v0v2, qvec) * invDet;
-    return dist;
+ //   float dist = dot(v0v2, qvec) * invDet;
+
+    return ( u<0||u>1 ? FLT_MAX : 
+            ( v<0||v+u>1 ? FLT_MAX : 
+             ( dot(v0v2, qvec)*invDet) ));
 } 
 
 // https://tavianator.com/fast-branchless-raybounding-box-intersections/
@@ -146,26 +149,29 @@ float bmBoxRayIntersect(const vec3& bMin, const vec3& bMax,
     float dist  = _max(0.f, ftmin);
     dist = (ftmax >= ftmin ? dist : FLT_MAX);
     return dist;
+}
 
-    //float tx1 = (bMin.x - orig.x)*invDir.x;
-    //float tx2 = (bMax.x - orig.x)*invDir.z;
 
-    //float tmin = _min(tx1, tx2);
-    //float tmax = _max(tx1, tx2);
+FDEVICE INLINE
+void bmValidateAABB(const vec3& bMin, const vec3& bMax)
+{
+    u32 dZero = 0;
+    dZero += (bMax[0]-bMin[0]<0) ? 1 : 0;
+    dZero += (bMax[1]-bMin[1]<0) ? 1 : 0;
+    dZero += (bMax[2]-bMin[2]<0) ? 1 : 0;
+    if ( dZero==3 )
+    {
+        printf( "BoxSize: %.f %.f %.f\nbMin %f %f %f | bMax %f %f %f\n", 
+                bMax[0]-bMin[0], bMax[1]-bMin[1], bMax[2]-bMin[2],
+                bMin[0], bMin[1], bMin[2], bMax[0], bMax[1], bMax[2]);
+        assert( false );
+    }
+}
 
-    //float ty1 = (bMin.y - orig.y)*invDir.y;
-    //float ty2 = (bMax.y - orig.y)*invDir.y;
- 
-    //tmin = _max(tmin, _min(ty1, ty2));
-    //tmax = _min(tmax, _max(ty1, ty2));
-
-    //float tz1 = (bMin.z - orig.z)*invDir.z;
-    //float tz2 = (bMax.z - orig.z)*invDir.z;
-
-    //tmin = _max(tmin, _min(tz1, tz2));
-    //tmax = _min(tmax, _max(tz1, tz2));
- 
-    //float dist = tmin >= 0.f ? tmin : tmax;
-    //dist = (dist < 0.f ? FLT_MAX : dist);
-    //return dist;
+FDEVICE INLINE
+void bmPrintAABB(const vec3& bMin, const vec3& bMax)
+{
+    printf( "BoxSize: %.f %.f %.f\nbMin %f %f %f | bMax %f %f %f\n", 
+            bMax[0]-bMin[0], bMax[1]-bMin[1], bMax[2]-bMin[2],
+            bMin[0], bMin[1], bMin[2], bMax[0], bMax[1], bMax[2]);
 }

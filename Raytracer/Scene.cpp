@@ -2,8 +2,10 @@
 #include "Mesh.h"
 #include "SharedTypes.h"
 #include "DeviceBuffer.h"
+#include "BuildTree.cuh"
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 using namespace std;
 using namespace glm;
 using namespace Beam;
@@ -11,8 +13,8 @@ using namespace Beam;
 
 extern "C"
 {
-    void bmResetScene(void* rootNode, void* faceStore, 
-void* faceGroupStore, void* nodeStore,
+    void bmResetScene(void* rootNode, void* faceStore,
+                      void* faceGroupStore, void* nodeStore,
                       void* faces, void* facePtrs, void* nodes,
                       u32 maxFaces, u32 maxFacePtrs, u32 maxNodes);
 
@@ -31,8 +33,8 @@ void* faceGroupStore, void* nodeStore,
 
 namespace Beam
 {
-    constexpr u32 MaxNodes = 1<<16;
-    constexpr u32 MaxFaces = MaxNodes * 128;
+    constexpr u32 MaxNodes = (1<<24);               /* This is unrelated to max tree depth */
+    constexpr u32 MaxFaces = (1<<16) * (1<<10);
 
     // ------ IScene ----------------------------------------------------------------------------------------
 
@@ -45,16 +47,29 @@ namespace Beam
 
     Scene::Scene():
         m_mustUpdateMeshPtrs(false),
-        m_min(vec3(-100)),
-        m_max(vec3(100))
+        m_min(vec3(-30)),
+        m_max(vec3(30))
     {
+        u32 nodeSize    = MaxNodes * bmGetNodeSize();
+        u32 faceSize    = MaxFaces * bmGetFaceSize();
+        u32 facePtrSize = MaxFaces * bmGetFacePtrSize();
+        assert( nodeSize && facePtrSize && faceSize );
+
         m_rootNode         = make_shared<DeviceBuffer>( bmGetNodeSize() );
         m_nodeStore        = make_shared<DeviceBuffer>( bmGetNodeStoreSize() );
         m_faceStore        = make_shared<DeviceBuffer>( bmGetFaceStoreSize() );
         m_faceGroupStore   = make_shared<DeviceBuffer>( bmGetFaceGroupStoreSize() );
-        m_nodesBuffer      = make_shared<DeviceBuffer>( MaxNodes * bmGetNodeSize() );
-        m_facesBuffer      = make_shared<DeviceBuffer>( MaxFaces * bmGetFaceSize() );
-        m_facePtrsBuffer   = make_shared<DeviceBuffer>( MaxFaces * bmGetFacePtrSize() );
+        m_nodesBuffer      = make_shared<DeviceBuffer>( nodeSize );
+        m_facesBuffer      = make_shared<DeviceBuffer>( faceSize );
+        m_facePtrsBuffer   = make_shared<DeviceBuffer>( facePtrSize );
+
+        float nMb  = (float)bmGetNodeSize()*MaxNodes/1024/1024;
+        float fMb  = (float)bmGetFaceSize()*MaxFaces/1024/1024;
+        float fpMb = (float)bmGetFacePtrSize()*MaxFaces/1024/1024;
+        cout << "Nodes memory: " << nMb  << "mb." << endl;
+        cout << "Faces memory: " << fMb  << "mb." << endl;
+        cout << "FPtrs memory: " << fpMb << "mb." << endl;
+        cout << "Total: " << nMb+fMb+fpMb << "mb." << endl;
     }
 
     void Scene::addMesh(const sptr<IMesh>& mesh)

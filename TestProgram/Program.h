@@ -28,25 +28,6 @@ namespace TestProgram
         }
     };
 
-    struct ProfileItemWithCuda : public ProfileItem
-    {
-        //cudaEvent_t cstart, cend;
-
-        //ProfileItemWithCuda(const std::string& s):
-        //    cstart(nullptr),
-        //    cend(nullptr),
-        //    ProfileItem(s)
-        //{
-        //    CUDA_CALL( cudaEventCreate( &cstart ) );
-        //}
-
-        //~ProfileItemWithCuda()
-        //{
-        //    CUDA_CALL( cudaEventDestroy( cstart ) );
-        //    CUDA_CALL( cudaEventDestroy( cend ) );
-        //}
-    };
-
     class Program
     {
     public:

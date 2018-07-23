@@ -12,8 +12,8 @@ using namespace Beam;
 #define MARCH_THREADS 256
 
 // tree memory
-#define BUILD_TREE_MAX_DEPTH 12
-#define MAX_FACES_PER_BOX 2
+#define BUILD_TREE_MAX_DEPTH 48
+#define MAX_FACES_PER_BOX 8
 
 
 struct bmMaterial
@@ -70,8 +70,8 @@ struct bmStackNode
 {
     vec3 m_min, m_max;
     bmTreeNode* m_node;
-    u32 m_splitAxis;
     u32 m_depth;
+    u32 m_splitAxis;
 
     DEVICE void init(bmTreeNode* node, const vec3& bMin, const vec3& bMax, u32 splitAxis, u32 depth);
     DEVICE bool intersect(const vec3& triMin, const vec3& triMax);

@@ -87,10 +87,10 @@ namespace TestProgram
 
         //sptr<IMesh> mesh = IMesh::create();
         //vec3* vertices = new vec3[4];
-        //vertices[0] = vec3(-1.f, -1.f, 1.f);
-        //vertices[1] = vec3(0.f, 1.f, 1.f);
-        //vertices[2] = vec3(1.f, -1.f, 1.f);
-        //vertices[3] = vec3(1.f, 1.f, 1.f);
+        //vertices[0] = vec3(-1.f, -1.f, 1.56f);
+        //vertices[1] = vec3(0.f, 1.f, 1.56f);
+        //vertices[2] = vec3(1.f, -1.f, 1.56f);
+        //vertices[3] = vec3(2.f, 1.f, 1.56f);
         //u32* indices = new u32[6];
         //indices[0]=0;
         //indices[1]=1;
@@ -212,12 +212,12 @@ namespace TestProgram
 
         // -- Trace scene --
         ProfileItem piTrace("Trace");
-        //{
-        //    vec3 eye    = vec3(0, 0, -2.1f);
-        //    mat3 orient = mat3(1.f);
-        //    err = m_camera->traceScene(&eye.x, &orient[0][0], m_scene);
-        //    assert(err==0);
-        //}
+        {
+            vec3 eye    = vec3(0, 0, -2.1f);
+            mat3 orient = mat3(1.f);
+            err = m_camera->traceScene(&eye.x, &orient[0][0], m_scene);
+            assert(err==0);
+        } 
         pushProfile(piTrace);
 
       //  cudaDeviceSynchronize();
