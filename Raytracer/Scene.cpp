@@ -33,8 +33,8 @@ extern "C"
 
 namespace Beam
 {
-    constexpr u32 MaxNodes = (1<<24);               /* This is unrelated to max tree depth */
-    constexpr u32 MaxFaces = (1<<16) * (1<<10);
+    constexpr u32 MaxNodes = (1<<16) * 16;               /* This is unrelated to max tree depth */
+    constexpr u32 MaxFaces = (1<<16) * 64 * 4;
 
     // ------ IScene ----------------------------------------------------------------------------------------
 

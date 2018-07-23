@@ -23,6 +23,7 @@ constexpr float kEpsilon = 0.000001f;
     #define DEVICE __device__
     #define FDEVICE FORCEINLINE DEVICE
     #define THREAD_FENCE() __threadfence()
+    #define CONSTANT __constant__
     #define INLINE
 
     #define bDim blockDim
@@ -39,6 +40,7 @@ constexpr float kEpsilon = 0.000001f;
     #define DEVICE
     #define FDEVICE
     #define THREAD_FENCE()
+    #define CONSTANT
     #define INLINE inline
 
     static uint4 cpu_blockDim;

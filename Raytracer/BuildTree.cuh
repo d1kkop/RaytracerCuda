@@ -12,7 +12,7 @@ using namespace Beam;
 #define MARCH_THREADS 256
 
 // tree memory
-#define BUILD_TREE_MAX_DEPTH 48
+#define BUILD_TREE_MAX_DEPTH 38
 #define MAX_FACES_PER_BOX 8
 
 
@@ -27,6 +27,7 @@ struct bmFace
     uint4 m_index; // x,y,z indices, w meshIdx
     bmMaterial* m_material;
     DEVICE float intersect(const vec3& eye, const vec3& dir, const StaticMeshData* meshDataPtrs, u32 numMeshes, float& u, float& v);
+    DEVICE vec4 interpolate(float u, float v, const StaticMeshData* meshDataPtrs, u32 dataIdx);
 };
 
 

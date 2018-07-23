@@ -15,6 +15,38 @@ DEVICE float bmFace::intersect(const vec3& eye, const vec3& dir, const StaticMes
     return bmTriIntersect( eye, dir, vp[idx.x], vp[idx.y], vp[idx.z], u, v );
 }
 
+FDEVICE INLINE vec4 getData1(float* vd) { return vec4(vd[0], 0.f, 0.f, 0.f); }
+FDEVICE INLINE vec4 getData2(float* vd) { return vec4(vd[0], vd[1], 0.f, 0.f); }
+FDEVICE INLINE vec4 getData3(float* vd) { return vec4(vd[0], vd[1], vd[2], 0.f); }
+FDEVICE INLINE vec4 getData4(float* vd) { return vec4(vd[0], vd[1], vd[2], vd[3]); }
+
+using fGetData = vec4 (*)(float*);
+CONSTANT fGetData c_getData[4] = 
+{
+    &getData1,
+    &getData2,
+    &getData3,
+    &getData4
+};
+
+DEVICE vec4 bmFace::interpolate(float u, float v, const StaticMeshData* meshDataPtrs, u32 dataIdx)
+{
+    assert( meshDataPtrs );
+    assert( dataIdx < VERTEX_DATA_COUNT );
+    const StaticMeshData* mesh = &meshDataPtrs[m_index.w];
+    uint4 idx = m_index;
+    float* vd = mesh->m_vertexData[ dataIdx ];
+    u32 dsize = mesh->m_vertexDataSizes[ dataIdx ];
+    assert( dsize > 0 && dsize < 4 );
+    float* vd1 = vd + idx.x*dsize;
+    float* vd2 = vd + idx.y*dsize;
+    float* vd3 = vd + idx.z*dsize;
+    vec4 vu = c_getData[dsize]( vd1 ) * u;
+    vec4 vv = c_getData[dsize]( vd2 ) * v;
+    vec4 vw = c_getData[dsize]( vd3 ) * (1.f-(u+v));
+    return vu + vv + vw;
+}
+
 // -------- bmTreeNode -----------------------------------------------------------------------------------------------------------
 
 DEVICE void bmTreeNode::init()
@@ -65,6 +97,7 @@ DEVICE void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFace*>
       //  atomicExch( (u64)(m_faces+storeFidx), (u64)face );
         m_faces[storeFidx] = face;
     }
+  //  else printf("Num faces %d\n", storeFidx);
 }
 
 
@@ -164,6 +197,37 @@ void bmResetScene( void* rootNode, void* faceStore, void* faceGroupStore, void* 
 
 // -------- bmInserTriangleInTree -----------------------------------------------------------------------------------------------------------
 
+FDEVICE INLINE void getNewAABBAndSplitAxis0(float s, const vec3& bMin, const vec3& bMax, 
+                                            vec3& nMaxL, vec3& nMinR, u32& axis)
+{
+    nMaxL = vec3(s, bMax.y, bMax.z);
+    nMinR = vec3(s, bMin.y, bMin.z);
+    axis  = 1;
+}
+
+FDEVICE INLINE void getNewAABBAndSplitAxis1(float s, const vec3& bMin, const vec3& bMax, 
+                                            vec3& nMaxL, vec3& nMinR, u32& axis)
+{
+    nMaxL = vec3(bMax.x, s, bMax.z);
+    nMinR = vec3(bMin.x, s, bMin.z);
+    axis  = 2;
+}
+
+FDEVICE INLINE void getNewAABBAndSplitAxis2(float s, const vec3& bMin, const vec3& bMax, 
+                                            vec3& nMaxL, vec3& nMinR, u32& axis)
+{
+    nMaxL = vec3(bMax.x, bMax.y, s);
+    nMinR = vec3(bMin.x, bMin.y, s);
+    axis  = 0;
+}
+
+using fGetNewAABBAxis = void (*)(float, const vec3&, const vec3&, vec3&, vec3&, u32&);
+CONSTANT fGetNewAABBAxis c_getNewAABBAxis[3] =
+{
+    &getNewAABBAndSplitAxis0,
+    &getNewAABBAndSplitAxis1,
+    &getNewAABBAndSplitAxis2
+};
 
 // NOTE: Deliberately pass bMin and bMax by value as stack memory is used by stLeft and stRight.
 DEVICE void splitOrAdd( bmTreeNode* node, vec3 bMin, vec3 bMax, u32 splitAxis, u32 ndepth,
@@ -175,24 +239,29 @@ DEVICE void splitOrAdd( bmTreeNode* node, vec3 bMin, vec3 bMax, u32 splitAxis, u
     assert( node->m_left );
     assert( node->m_right );
     float s = .5f*(bMax[splitAxis]+bMin[splitAxis]);
-    switch ( splitAxis )
-    {
-    case 0:
-        stLeft->init ( node->m_left,  bMin, vec3(s, bMax.y, bMax.z), 1, ndepth );
-        stRight->init( node->m_right, vec3(s, bMin.y, bMin.z), bMax, 1, ndepth );
-        return;
-    
-    case 1:
-        stLeft->init ( node->m_left,  bMin, vec3(bMax.x, s, bMax.z), 2, ndepth );
-        stRight->init( node->m_right, vec3(bMin.x, s, bMin.z), bMax, 2, ndepth );
-        return;
+    vec3 lMax, rMin;
+    u32 naxis;
+    c_getNewAABBAxis[splitAxis]( s, bMin, bMax, lMax, rMin, naxis );
+    stLeft->init ( node->m_left,  bMin, lMax, naxis, ndepth );
+    stRight->init( node->m_right, rMin, bMax, naxis, ndepth );
+    //switch ( splitAxis )
+    //{
+    //case 0:
+    //    stLeft->init ( node->m_left,  bMin, vec3(s, bMax.y, bMax.z), 1, ndepth );
+    //    stRight->init( node->m_right, vec3(s, bMin.y, bMin.z), bMax, 1, ndepth );
+    //    return;
+    //
+    //case 1:
+    //    stLeft->init ( node->m_left,  bMin, vec3(bMax.x, s, bMax.z), 2, ndepth );
+    //    stRight->init( node->m_right, vec3(bMin.x, s, bMin.z), bMax, 2, ndepth );
+    //    return;
 
-    case 2:
-        stLeft->init ( node->m_left,  bMin, vec3(bMax.x, bMax.y, s), 0, ndepth );
-        stRight->init( node->m_right, vec3(bMin.x, bMin.y, s), bMax, 0, ndepth );
-        return;
-    }
-    assert(false);
+    //case 2:
+    //    stLeft->init ( node->m_left,  bMin, vec3(bMax.x, bMax.y, s), 0, ndepth );
+    //    stRight->init( node->m_right, vec3(bMin.x, bMin.y, s), bMax, 0, ndepth );
+    //    return;
+    //}
+    //assert(false);
 }
 
 GLOBAL void bmInsertTriangleInTree( const vec3* vertices, const uint3* faces, 
@@ -334,7 +403,9 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
     st->init( root, bMin, bMax, 0, 0 );
     i32 top  = 0;
     float dClosest = FLT_MAX;
-//    float tU, tV;    
+    bmFace* fClosest;
+    float tU;
+    float tV;
 
     do
     {
@@ -365,8 +436,9 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
                         if ( d < dClosest )
                         {
                             dClosest = d;
-                            //      tU = u;
-                            //      tV = v;
+                            fClosest = face;
+                            tU = u;
+                            tV = v;
                         }
                     }
                     if ( dClosest != FLT_MAX )
@@ -420,7 +492,11 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
     
     if ( dClosest != FLT_MAX )
     {
-        buffer[i] = 150<<16;
+        assert( fClosest );
+        vec4 n = fClosest->interpolate( tU, tV, meshDataPtrs, 1 );
+        n.w = 0.f;
+        n = normalize( n );
+        buffer[i] = (u32)(fabs(n.z)*255) << 16;
     }
     else
     {
