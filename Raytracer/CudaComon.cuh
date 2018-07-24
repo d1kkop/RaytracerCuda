@@ -15,7 +15,7 @@ using namespace glm;
 constexpr float kEpsilon = 0.000001f;
 
 
-#define CUDA 1
+#define CUDA 0
 
 #if CUDA 
 

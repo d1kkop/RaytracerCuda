@@ -61,7 +61,7 @@ namespace TestProgram
         int count=0;
         CUDA_CALL( cudaGetDeviceCount( &count ) );
 
-        CUDA_CALL( cudaSetDevice( 0/*count-1 */ ) );
+        CUDA_CALL( cudaSetDevice( count-1 ) );
 
         bool succes; 
         succes = m_glRenderer.init(width, height);
@@ -79,7 +79,7 @@ namespace TestProgram
         u32 err=0;
         m_scene = IScene::create();
 
-        if ( !Model::load(R"(D:\_Programming\2018\RaytracerCuda\Content/armadillo.obj)", m_scene, 1) )
+        if ( !Model::load(R"(D:\_Programming\2018\RaytracerCuda\Content/f16.obj)", m_scene, 1) )
         {
             cout << "Failed to load bunny" << endl;
         }

@@ -12,9 +12,9 @@ using namespace Beam;
 #define MARCH_THREADS 256
 
 // tree memory
-#define BUILD_TREE_MAX_DEPTH 32
-#define TREE_SEARCH_DEPTH 32
-#define MAX_FACES_PER_BOX 128
+#define BUILD_TREE_MAX_DEPTH 38
+#define TREE_SEARCH_DEPTH BUILD_TREE_MAX_DEPTH
+#define MAX_FACES_PER_BOX 8
 
 
 struct bmMaterial
@@ -47,6 +47,7 @@ struct bmStore
         assert(m_top+cnt <= m_max);
     #endif
         u32 old = atomicAdd2<u32>(&m_top, cnt);
+        memset(m_elements + old, 0, sizeof(T)*cnt);
         return m_elements + old;
     }
 };
@@ -62,7 +63,6 @@ struct bmTreeNode
     bmTreeNode* m_right;
     u32 m_faceInsertIdx;
 
-    FDEVICE void init();
     FDEVICE void split(bmStore<bmTreeNode>* store);
     FDEVICE void insertFace(bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat);
 };

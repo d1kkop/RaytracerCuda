@@ -48,28 +48,18 @@ FDEVICE vec4 bmFace::interpolate(float u, float v, const StaticMeshData* meshDat
 
 // -------- bmTreeNode -----------------------------------------------------------------------------------------------------------
 
-FDEVICE void bmTreeNode::init()
-{
-    m_left  = nullptr;
-    m_right = nullptr;
-    m_faceInsertIdx = 0;
-}
-
 FDEVICE void bmTreeNode::split(bmStore<bmTreeNode>* store)
 {
-    if ( !(m_left && m_right) )
+    u32 bEval = m_left?1:0;
+    bEval += m_right?1:0;
+    if ( bEval != 2 )
     {
-        // NOTE: If left and/or right are not assigned due to atomic compare & swap memory is LEAKDED.
+        // NOTE: If left and/or right are not assigned due to atomic compare & swap memory is LEAKED.
         // However, the leaked memory is reclaimed every frame.
         bmTreeNode* leftAndRight = store->getNew(2);
-        bool leftSwapped  = atomicCAS2<u64>( (u64*)&m_left, (u64)0, (u64)leftAndRight ) == 0;
-        bool rightSwapped = atomicCAS2<u64>( (u64*)&m_right, (u64)0, (u64)(leftAndRight+1) ) == 0;
-        if ( leftSwapped ) m_left->init();
-        if ( rightSwapped) m_right->init();
+        atomicCAS2<u64>( (u64*)&m_left, (u64)0, (u64)leftAndRight );
+        atomicCAS2<u64>( (u64*)&m_right, (u64)0, (u64)(leftAndRight+1) );
     }
-    THREAD_FENCE();
-    assert( m_left );
-    assert( m_right );
 }
 
 FDEVICE void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat )
@@ -235,12 +225,14 @@ FDEVICE void splitOrAdd( bmTreeNode* node, vec3 bMin, vec3 bMax, u32 splitAxis, 
     assert( node );
     assert( nodeStore );
     node->split( nodeStore ); // this creates 2 new tree nodes for node
-    assert( node->m_left );
-    assert( node->m_right );
     float s = .5f*(bMax[splitAxis]+bMin[splitAxis]);
     vec3 lMax, rMin;
     u32 naxis;
     c_getNewAABBAxis[splitAxis]( s, bMin, bMax, lMax, rMin, naxis );
+    // Try put thread_fence latest as possible
+    THREAD_FENCE();
+    assert( node->m_left );
+    assert( node->m_right );
     stLeft ->init( node->m_left,  bMin, lMax, naxis, ndepth );
     stRight->init( node->m_right, rMin, bMax, naxis, ndepth );
     //switch ( splitAxis )
@@ -468,8 +460,8 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
         assert(st);
         assert(curNode);
 
-        //if ( !curNode->m_right && !curNode->m_faces )
-        //    continue;
+        if ( !curNode->m_right && !curNode->m_faces )
+            continue;
 
         // check ray box intersect
         float boxDist = bmBoxRayIntersect(st->m_min, st->m_max, eye, invDir);
