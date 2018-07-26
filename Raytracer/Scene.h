@@ -18,19 +18,25 @@ namespace Beam
         void updateMeshPtrs();
         void updateGPUScene() override;
 
+        const sptr<DeviceBuffer>& staticMeshPtrs() const { return m_staticMeshPtrs; }
+
+    #if TREE
+        const sptr<DeviceBuffer>& rootNode() const { return m_rootNode; }
         const glm::vec3& _min() const { return m_min; }
         const glm::vec3& _max() const { return m_max; }
-
-        const sptr<DeviceBuffer>& rootNode() const { return m_rootNode; }
-        const sptr<DeviceBuffer>& staticMeshPtrs() const { return m_staticMeshPtrs; }
-        
+    #else
+        const sptr<DeviceBuffer>& cells() const { return m_cells; }
+    #endif
 
     private:
         void addMeshToSceneOnGPU( const Mesh& mesh, u32 meshIdx );
 
-        glm::vec3 m_min, m_max;
-        Array<sptr<Mesh>> m_staticMeshes;
+        Array<sptr<Mesh>>  m_staticMeshes;
         sptr<DeviceBuffer> m_staticMeshPtrs;
+        bool m_mustUpdateMeshPtrs;
+
+    #if TREE
+        glm::vec3 m_min, m_max;
         sptr<DeviceBuffer> m_rootNode;
         sptr<DeviceBuffer> m_nodeStore;
         sptr<DeviceBuffer> m_faceStore;
@@ -38,7 +44,9 @@ namespace Beam
         sptr<DeviceBuffer> m_facesBuffer;
         sptr<DeviceBuffer> m_facePtrsBuffer;
         sptr<DeviceBuffer> m_nodesBuffer;
-        bool m_mustUpdateMeshPtrs;
+    #else
+        sptr<DeviceBuffer> m_cells;
+    #endif
     };
 
 }

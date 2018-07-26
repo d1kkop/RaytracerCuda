@@ -13,6 +13,7 @@ using namespace Beam;
 
 extern "C"
 {
+#if TREE
     void bmResetScene(void* rootNode, void* faceStore,
                       void* faceGroupStore, void* nodeStore,
                       void* faces, void* facePtrs, void* nodes,
@@ -21,6 +22,7 @@ extern "C"
     void bmInsertMeshInTree(const vec3* vertices, const u32* indices, u32 numIndices, u32 meshIdx,
                             vec3 bMin, vec3 bMax,
                             void* treeRootNode, void* faceStore, void* faceGroupStore, void* nodeStore, void* material);
+
     u32 bmGetFaceSize();
     u32 bmGetFacePtrSize();
     u32 bmGetMaterialSize();
@@ -28,13 +30,26 @@ extern "C"
     u32 bmGetFaceStoreSize();
     u32 bmGetNodeStoreSize();
     u32 bmGetFaceGroupStoreSize();
+#else
+    // Hash World
+    void bmResetSpace( void* cells );
+    void bmInsertMeshInSpace(const vec3* vertices,
+                             const u32* indices, u32 numIndices,
+                             void* material, u32 meshIdx,
+                             void* cells);
+    u32 bmGetCellSize();
+#endif
 }
 
 
 namespace Beam
 {
-    constexpr u32 MaxNodes = (1<<16) * 64;               /* This is unrelated to max tree depth */
+#if TREE
+    constexpr u32 MaxNodes = (1<<16) * 64 * 4;               /* This is unrelated to max tree depth */
     constexpr u32 MaxFaces = (1<<16) * 64 * 4;
+#else
+    constexpr u32 MaxCells = MAX_HASH_ELEMENTS; 
+#endif
 
     // ------ IScene ----------------------------------------------------------------------------------------
 
@@ -46,10 +61,13 @@ namespace Beam
     // ------ Scene ----------------------------------------------------------------------------------------
 
     Scene::Scene():
-        m_mustUpdateMeshPtrs(false),
-        m_min(vec3(-30)),
-        m_max(vec3(30))
+        m_mustUpdateMeshPtrs(false)
+    #if TREE
+        ,m_min(vec3(-30)),
+         m_max(vec3(30))
+    #endif
     {
+    #if TREE
         u32 nodeSize    = MaxNodes * bmGetNodeSize();
         u32 faceSize    = MaxFaces * bmGetFaceSize();
         u32 facePtrSize = MaxFaces * bmGetFacePtrSize();
@@ -63,13 +81,19 @@ namespace Beam
         m_facesBuffer      = make_shared<DeviceBuffer>( faceSize );
         m_facePtrsBuffer   = make_shared<DeviceBuffer>( facePtrSize );
 
-        float nMb  = (float)bmGetNodeSize()*MaxNodes/1024/1024;
-        float fMb  = (float)bmGetFaceSize()*MaxFaces/1024/1024;
-        float fpMb = (float)bmGetFacePtrSize()*MaxFaces/1024/1024;
+        float nMb  = (float)m_nodesBuffer->size()/1024/1024;
+        float fMb  = (float)m_facesBuffer->size()/1024/1024;
+        float fpMb = (float)m_facePtrsBuffer->size()/1024/1024;
         cout << "Nodes memory: " << nMb  << "mb." << endl;
         cout << "Faces memory: " << fMb  << "mb." << endl;
         cout << "FPtrs memory: " << fpMb << "mb." << endl;
         cout << "Total: " << nMb+fMb+fpMb << "mb." << endl;
+    #else
+        m_cells = make_shared<DeviceBuffer>( bmGetCellSize()*MaxCells );
+        float cMb  = (float)m_cells->size()/1024/1024;
+        cout << " Cells memory: " << cMb << "mb." << endl;
+        cout << "Total: " << cMb << "mb." << endl;
+    #endif
     }
 
     void Scene::addMesh(const sptr<IMesh>& mesh)
@@ -120,6 +144,7 @@ namespace Beam
     {
         updateMeshPtrs();
 
+    #if TREE
         bmResetScene(
            m_rootNode->ptr<void>(),
            /* stores */
@@ -132,6 +157,9 @@ namespace Beam
            m_nodesBuffer->ptr<void>(),
             /* stores' _max elements */
            MaxFaces, MaxFaces, MaxNodes );
+    #else
+        bmResetSpace( m_cells->ptr<void>() );
+    #endif
        
        for ( u32 i=0; i<m_staticMeshes.size(); i++ )
        {
@@ -143,6 +171,7 @@ namespace Beam
 
     void Scene::addMeshToSceneOnGPU(const Mesh& mesh, u32 meshIdx)
     {
+    #if TREE
         bmInsertMeshInTree( 
             mesh.vertexData( VERTEX_DATA_POSITION )->ptr<const vec3>(),
             mesh.indices()->ptr<u32>(), 
@@ -154,6 +183,15 @@ namespace Beam
             m_faceGroupStore->ptr<void>(),
             m_nodeStore->ptr<void>(),
             nullptr);
+    #else
+        bmInsertMeshInSpace( 
+            mesh.vertexData(VERTEX_DATA_POSITION)->ptr<const vec3>(),
+            mesh.indices()->ptr<u32>(),
+            mesh.numIndices(),
+            nullptr,
+            meshIdx,
+            m_cells->ptr<void>());
+    #endif
     }
 
 }

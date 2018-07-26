@@ -5,6 +5,10 @@
 #include <map>
 
 
+#define CUDA 1
+#define TREE 1
+
+
 namespace Beam
 {
     using i32 = __int32;

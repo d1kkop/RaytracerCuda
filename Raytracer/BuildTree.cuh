@@ -16,6 +16,11 @@ using namespace Beam;
 #define TREE_SEARCH_DEPTH BUILD_TREE_MAX_DEPTH
 #define MAX_FACES_PER_BOX 8
 
+// Hash world
+#define MAX_HASH_ELEMENTS 65536UL
+
+
+
 
 struct bmMaterial
 {
@@ -27,8 +32,6 @@ struct bmFace
 {
     uint4 m_index; // x,y,z indices, w meshIdx
     bmMaterial* m_material;
-    FDEVICE float intersect(const vec3& eye, const vec3& dir, const StaticMeshData* meshDataPtrs, u32 numMeshes, float& u, float& v);
-    FDEVICE vec4 interpolate(float u, float v, const StaticMeshData* meshDataPtrs, u32 dataIdx);
 };
 
 
@@ -55,15 +58,13 @@ struct bmStore
 
 struct bmTreeNode
 {
-    union
-    {
-        bmTreeNode* m_left;    
-        bmFace** m_faces;
-    };
+    bmTreeNode* m_left;
     bmTreeNode* m_right;
+    bmFace** m_faces;
     u32 m_faceInsertIdx;
 
     FDEVICE void split(bmStore<bmTreeNode>* store);
+    FDEVICE void split2(bool b1, bool b2, bmStore<bmTreeNode>* store);
     FDEVICE void insertFace(bmStore<bmFace>* faceStore, bmStore<bmFace*>* faceGroupStore, u32 meshIdx, uint3 faceIdx, bmMaterial* mat);
 };
 
@@ -79,5 +80,48 @@ struct bmStackNode
     FDEVICE bool intersect(const vec3& triMin, const vec3& triMax);
 };
 
+
+
+FDEVICE INLINE float bmFaceRayIntersect(bmFace* face, const vec3& eye, const vec3& dir, const StaticMeshData* meshDataPtrs, float& u, float& v)
+{
+    assert( meshDataPtrs );
+    uint4 idx = face->m_index;
+    const StaticMeshData* mesh = &meshDataPtrs[idx.w];
+    vec3* vp  = (vec3*)mesh->m_vertexData[ VERTEX_DATA_POSITION ];
+    assert( mesh->m_vertexDataSizes[ VERTEX_DATA_POSITION ] == 3 );
+    return bmTriIntersect( eye, dir, vp[idx.x], vp[idx.y], vp[idx.z], u, v );
+}
+
+FDEVICE INLINE vec4 getData1(float* vd) { return vec4(vd[0], 0.f, 0.f, 0.f); }
+FDEVICE INLINE vec4 getData2(float* vd) { return vec4(vd[0], vd[1], 0.f, 0.f); }
+FDEVICE INLINE vec4 getData3(float* vd) { return vec4(vd[0], vd[1], vd[2], 0.f); }
+FDEVICE INLINE vec4 getData4(float* vd) { return vec4(vd[0], vd[1], vd[2], vd[3]); }
+
+using fGetData = vec4 (*)(float*);
+static CONSTANT fGetData c_getData[4] = 
+{
+    &getData1,
+    &getData2,
+    &getData3,
+    &getData4
+};
+
+FDEVICE INLINE vec4 bmFaceInterpolate(bmFace* face, float u, float v, const StaticMeshData* meshDataPtrs, u32 dataIdx)
+{
+    assert( meshDataPtrs );
+    assert( dataIdx < VERTEX_DATA_COUNT );
+    uint4 idx = face->m_index;
+    const StaticMeshData* mesh = &meshDataPtrs[idx.w];
+    float* vd = mesh->m_vertexData[ dataIdx ];
+    u32 dsize = mesh->m_vertexDataSizes[ dataIdx ];
+    assert( dsize > 0 && dsize < 4 );
+    float* vd1 = vd + idx.x*dsize;
+    float* vd2 = vd + idx.y*dsize;
+    float* vd3 = vd + idx.z*dsize;
+    vec4 vu = c_getData[dsize]( vd1 ) * u;
+    vec4 vv = c_getData[dsize]( vd2 ) * v;
+    vec4 vw = c_getData[dsize]( vd3 ) * (1.f-(u+v));
+    return vu + vv + vw;
+}
 
 #endif

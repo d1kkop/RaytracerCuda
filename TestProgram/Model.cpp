@@ -32,12 +32,16 @@ namespace TestProgram
             return false;
         }
         // Now we can access the file's contents.
+        u32 totalVertices =0;
+        u32 totalFaces =0;
         for (u32 i = 0; i < scene->mNumMeshes ; i++)
         {
         	const aiMesh* mesh  = scene->mMeshes[i];
             sptr<IMesh> gpuMesh = IMesh::create();
             for ( int j=0; j<numAdds; j++ )
                 toScene->addMesh( gpuMesh );
+            totalVertices += mesh->mNumVertices;
+            totalFaces += mesh->mNumFaces;
             u32 err=0;
             // deform indices
             u32* indices = new u32[mesh->mNumFaces*3];
@@ -85,6 +89,7 @@ namespace TestProgram
                 assert(err==0);
             }
         }
+        cout << endl << "Model " << name << " Faces: " << (float)totalFaces/(1000000) << " Vertices: " << (float)totalVertices/(1000000) << endl;
         // We're done. Everything will be cleaned up by the importer destructor
         return true;
     }

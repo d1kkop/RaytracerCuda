@@ -2,6 +2,7 @@
 #include "Model.h"
 #include <iostream>
 #include <cassert>
+#include <algorithm>
 #include <SDL.h>
 //#include <SDL_opengl.h>
 #include "../Raytracer/GLinterop.h"
@@ -37,6 +38,27 @@ bool bmGLHasContext()
 }
 
 
+u32 myHash(u32 h)
+{
+    u16 sum1 = 0;
+    u16 sum2 = 0;
+    int index;
+    u8* data = (u8*)&h;
+    for ( index = 0; index < 4; ++index )
+    {
+        sum1 = (sum1 + data[index]) % 255;
+        sum2 = (sum2 + sum1) % 255;
+    }
+    h = (sum2 << 8) | sum1;
+    assert( h < 65536 );
+    return h;
+}
+
+float bmBoxRayIntersectNoZero(const vec3& bMin, const vec3& bMax,
+                              const vec3& orig, const vec3& invDir);
+float bmBoxRayIntersect(const vec3& bMin, const vec3& bMax,
+                              const vec3& orig, const vec3& invDir);
+
 namespace TestProgram
 {
     Program::Program():
@@ -46,6 +68,30 @@ namespace TestProgram
         m_camera(nullptr),
         m_bufferObjIdx(0)
     {
+        vec3 eye(0,0,-2.3f);
+        vec3 dir(-1,-1,-1);
+        dir = normalize(dir);
+        vec3 invDir(1.f/dir.x,1.f/dir.y,1.f/dir.z);
+        float d = bmBoxRayIntersectNoZero(
+            vec3(0.f,0.f,-3.f), vec3(1.f,1.f,-2.f), 
+            eye, invDir );
+        float d2 = bmBoxRayIntersect( 
+            vec3(0.f, 0.f, -3.f), vec3(1.f, 1.f, -2.f),
+            eye, invDir );
+
+        int j = 0;
+        //int r=100;
+        //vector<int> hh;
+        //for ( int i = -r; i <r; i++ )
+        //{
+        //    int h = myHash(i);
+        //    printf("i %d, h %d\n", i, h);
+        //    hh.emplace_back(h);
+        //}
+        //std::unique(hh.begin(), hh.end());
+        //printf("Unique: %zd\n", hh.size());
+
+        //int j = 0;
     }
 
     Program::~Program()
@@ -79,44 +125,49 @@ namespace TestProgram
         u32 err=0;
         m_scene = IScene::create();
 
-        if ( !Model::load(R"(D:\_Programming\2018\RaytracerCuda\Content/f16.obj)", m_scene, 1) )
+        if ( !Model::load(R"(D:\_Programming\2018\RaytracerCuda\Content/armadillo.obj)", m_scene, 1) )
         {
             cout << "Failed to load bunny" << endl;
         }
 
 
-        //sptr<IMesh> mesh = IMesh::create();
-        //vec3* vertices = new vec3[4];
-        //vertices[0] = vec3(-1.f, -1.f, 1.56f);
-        //vertices[1] = vec3(0.f, 1.f, 1.56f);
-        //vertices[2] = vec3(1.f, -1.f, 1.56f);
-        //vertices[3] = vec3(2.f, 1.f, 1.56f);
-        //u32* indices = new u32[6];
-        //indices[0]=0;
-        //indices[1]=1;
-        //indices[2]=2;
-        //indices[3]=1;
-        //indices[4]=2;
-        //indices[5]=3;
-        //vec4* colors = new vec4[4];
-        //colors[0] = vec4(1.f, 0.f, 0.f, 1.f);
-        //colors[1] = vec4(0.f, 1.f, 0.f, 1.f);
-        //colors[2] = vec4(0.f, 0.f, 1.f, 1.f);
-        //colors[3] = vec4(1.f, 1.f, 0.f, 1.f);
-        //err = mesh->setIndices(indices, 3);
-        //assert(err==0);
-        //err = mesh->setVertexData((float*)vertices, 4, 3, VERTEX_DATA_POSITION);
-        //assert(err==0);
-        //err = mesh->setVertexData((float*)colors, 4, 4, VERTEX_DATA_EXTRA4);
-        //assert(err==0);
-        //delete[] colors;
-        //delete[] indices;
-        //delete[] vertices;
-        //m_scene->addMesh(mesh);
+    /*    sptr<IMesh> mesh = IMesh::create();
+        vec3* vertices = new vec3[4];
+        vec3* normals  = new vec3[4];
+        vertices[0] = vec3(-1.f, -1.f, 1.56f);
+        vertices[1] = vec3(0.f, 1.f, 1.56f);
+        vertices[2] = vec3(1.f, -1.f, 1.56f);
+        vertices[3] = vec3(2.f, 1.f, 1.56f);
+        for ( int i=0; i<4; i++ ) normals[i] = vec3(0, 0, -1);
+        u32* indices = new u32[6];
+        indices[0]=0;
+        indices[1]=1;
+        indices[2]=2;
+        indices[3]=1;
+        indices[4]=2;
+        indices[5]=3;
+        vec4* colors = new vec4[4];
+        colors[0] = vec4(1.f, 0.f, 0.f, 1.f);
+        colors[1] = vec4(0.f, 1.f, 0.f, 1.f);
+        colors[2] = vec4(0.f, 0.f, 1.f, 1.f);
+        colors[3] = vec4(1.f, 1.f, 0.f, 1.f);
+        err = mesh->setIndices(indices, 3);
+        assert(err==0);
+        err = mesh->setVertexData((float*)vertices, 4, 3, VERTEX_DATA_POSITION);
+        assert(err==0);
+        err = mesh->setVertexData((float*)colors, 4, 4, VERTEX_DATA_EXTRA4);
+        assert(err==0);
+        err = mesh->setVertexData((float*)normals, 4, 3, VERTEX_DATA_NORMAL);
+        assert(err==0);
+        delete[] colors;
+        delete[] indices;
+        delete[] vertices;
+        delete[] normals;
+        m_scene->addMesh(mesh);*/
 
 //        u32 err;
         m_camera = ICamera::create();
-        err = m_camera->setInitialRays( width, height );
+        err = m_camera->setInitialRays( 500, 500 );
         assert(err==0);
 
         err = m_textureBufferObject[0].renderTarget()->lock();
@@ -182,7 +233,7 @@ namespace TestProgram
         static bool first=true;
         if ( first )
         {
-         //   first = false;
+            first = false;
             ProfileItem pigpuScene(R"(Scene)");
             m_scene->updateGPUScene();
             cudaDeviceSynchronize(); // DEBUG

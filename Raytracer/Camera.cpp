@@ -14,14 +14,24 @@ using namespace Beam;
 
 
 extern "C"
-void bmMarch(const void* root, const vec3& bMin, const vec3& bMax,
-             const vec3* initialRays,
-             u32* buffer, u32 pitch, u32 width, u32 height,
-             const vec3& eye, const mat3& orient,
-             const StaticMeshData* meshData, u32 numMeshes);
+{
+#if TREE
+    void bmMarch(const void* root, const vec3& bMin, const vec3& bMax,
+                 const vec3* initialRays,
+                 u32* buffer, u32 pitch, u32 width, u32 height,
+                 const vec3& eye, const mat3& orient,
+                 const StaticMeshData* meshData);
 
-extern "C"
-void bmClear(u32* buffer, u32 pitch, u32 width, u32 height, u32 clearValue);
+#else
+    // HashWorld
+    void bmMarchSpace(const vec3* initialRays,
+                      u32* buffer, u32 pitch, u32 width, u32 height,
+                      const vec3& eye, const mat3& orient,
+                      const StaticMeshData* meshData,
+                      void* cells);
+#endif
+    void bmClear(u32* buffer, u32 pitch, u32 width, u32 height, u32 clearValue);
+}
 
 
 namespace Beam
@@ -105,19 +115,18 @@ namespace Beam
             return ERROR_NO_RENDER_TARGET;
         }
 
-        /* Update mesh ptrs gpu structure if meshes were added/removed. */
-        Scene* s = sc<Scene*>(scene.get());
-        s->updateMeshPtrs();
-
         /* Ensure RT and Cam have same dimensions. */
         if ( rt->width() != m_width || rt->height() != m_height )
         {
             return ERROR_RT_CAM_MISMATCH;
         }
 
-        const vec3 eye      = *rc<const vec3*>(eye3);
-        const mat3 orient   = *rc<const mat3*>(orient3x3);
+        const vec3 eye    = *rc<const vec3*>(eye3);
+        const mat3 orient = *rc<const mat3*>(orient3x3);
 
+        Scene* s = sc<Scene*>( scene.get() );
+
+    #if TREE
         bmMarch
         ( 
             s->rootNode()->ptr<void>(),
@@ -128,9 +137,20 @@ namespace Beam
             rt->width(),
             rt->height(),
             eye, orient,
-            s->staticMeshPtrs()->ptr<const StaticMeshData>(),
-            s->staticMeshPtrs()->size()
+            s->staticMeshPtrs()->ptr<const StaticMeshData>()
         );
+    #else
+        bmMarchSpace(
+            m_initialRays->ptr<const vec3>(),
+            rt->buffer<u32>(),
+            rt->pitch(),
+            rt->width(),
+            rt->height(),
+            eye, orient,
+            s->staticMeshPtrs()->ptr<const StaticMeshData>(),
+            s->cells()->ptr<void>()
+        );
+    #endif
 
         return ERROR_ALL_FINE;
     }

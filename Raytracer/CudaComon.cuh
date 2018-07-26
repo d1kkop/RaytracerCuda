@@ -15,8 +15,6 @@ using namespace glm;
 constexpr float kEpsilon = 0.000001f;
 
 
-#define CUDA 0
-
 #if CUDA 
 
     #define GLOBAL __global__
@@ -25,6 +23,7 @@ constexpr float kEpsilon = 0.000001f;
     #define THREAD_FENCE() __threadfence()
     #define CONSTANT __constant__
     #define INLINE
+    #define RESTRICT
 
     #define bDim blockDim
     #define tIdx threadIdx
@@ -41,6 +40,7 @@ constexpr float kEpsilon = 0.000001f;
     #define THREAD_FENCE()
     #define CONSTANT
     #define INLINE inline
+    #define RESTRICT __restrict
 
     static uint4 cpu_blockDim;
     static uint4 cpu_threadIdx;
@@ -164,6 +164,45 @@ float bmBoxRayIntersect(const vec3& bMin, const vec3& bMax,
     return dist;
 }
 
+// https://tavianator.com/fast-branchless-raybounding-box-intersections/
+FDEVICE INLINE
+float bmBoxRayIntersectNoZero(const vec3& bMin, const vec3& bMax,
+                              const vec3& orig, const vec3& invDir)
+{
+    vec3 tMin   = (bMin - orig) * invDir;
+    vec3 tMax   = (bMax - orig) * invDir;
+    vec3 tMin2  = _min(tMin, tMax);
+    vec3 tMax2  = _max(tMin, tMax);
+    float ftmin = _max(tMin2.x, _max(tMin2.y, tMin2.z));
+    float ftmax = _min(tMax2.x, _min(tMax2.y, tMax2.z));
+    float dist  = (isinf(ftmin)||ftmin<0.f)?ftmax:ftmin;
+    return dist;
+}
+
+FDEVICE INLINE
+bool bmAABBOverlap(const vec3& tMin, const vec3& tMax, const vec3& bMin, const vec3& bMax)
+{
+    bool b = 
+        ( tMin[0] > bMax[0] ? false :
+         ( tMin[1] > bMax[1] ? false :
+          ( tMin[2] > bMax[2] ? false :
+           ( tMax[0] < bMin[0] ? false :
+            ( tMax[1] < bMin[1] ? false :
+             ( tMax[2] < bMin[2] ? false : true ))))));
+    return b;
+}
+
+FDEVICE INLINE
+bool bmAABBOverlap2(const vec3& tMin, const vec3& tMax, const vec3& bMin, const vec3& bMax)
+{
+    if ( tMin[0] > bMax[0] ) return false;
+    if ( tMin[1] > bMax[1] ) return false;
+    if ( tMin[2] > bMax[2] ) return false;
+    if ( tMax[0] < bMin[0] ) return false;
+    if ( tMax[1] < bMin[1] ) return false;
+    if ( tMax[2] < bMin[2] ) return false;
+    return true;
+}
 
 FDEVICE INLINE
 void bmValidateAABB(const vec3& bMin, const vec3& bMax)
