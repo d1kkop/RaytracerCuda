@@ -15,6 +15,7 @@ using namespace Beam;
 #define BUILD_TREE_MAX_DEPTH 38
 #define TREE_SEARCH_DEPTH BUILD_TREE_MAX_DEPTH
 #define MAX_FACES_PER_BOX 8
+#define MIN_LEAF_SIZE 0.02f
 
 // Hash world
 #define MAX_HASH_ELEMENTS 65536UL

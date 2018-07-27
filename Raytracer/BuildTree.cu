@@ -1,5 +1,5 @@
 #include "BuildTree.cuh"
-
+#include "BoxTriangle.cu"
 
 // -------- bmTreeNode -----------------------------------------------------------------------------------------------------------
 
@@ -56,7 +56,7 @@ FDEVICE void bmTreeNode::insertFace( bmStore<bmFace>* faceStore, bmStore<bmFace*
       //  atomicExch( (u64)(m_faces+storeFidx), (u64)face );
         m_faces[storeFidx] = face;
     }
-  //  else printf("Num faces %d\n", storeFidx);
+    else printf("Num faces %d\n", storeFidx);
 }
 
 
@@ -170,15 +170,15 @@ GLOBAL void bmInsertTriangleInTree( const vec3* RESTRICT vertices, const uint3* 
     vec3 v[3] = { vertices[id.x], vertices[id.y], vertices[id.z] };
 
     // obtain aabb of triangle
-    vec3 triMin, triMax;
-    for ( int i=0; i<3; ++i )
-    {
-        triMin[i] = _min(v[0][i], _min(v[1][i], v[2][i]));
-        triMax[i] = _max(v[0][i], _max(v[1][i], v[2][i]));
-    }
-#if _DEBUG
-    bmValidateAABB( triMin, triMax );
-#endif
+    //vec3 triMin, triMax;
+    //for ( int i=0; i<3; ++i )
+    //{
+    //    triMin[i] = _min(v[0][i], _min(v[1][i], v[2][i]));
+    //    triMax[i] = _max(v[0][i], _max(v[1][i], v[2][i]));
+    //}
+//#if _DEBUG
+//    bmValidateAABB( triMin, triMax );
+//#endif
 
  //   __shared__ bmStackNode stack_shared[BUILD_TREE_THREADS][TREE_SEARCH_DEPTH];
  //   bmStackNode* stack = stack_shared[tx];
@@ -193,7 +193,10 @@ GLOBAL void bmInsertTriangleInTree( const vec3* RESTRICT vertices, const uint3* 
         assert( stNode && stNode->m_node );
         bmTreeNode* RESTRICT node = stNode->m_node;
 
-        if ( stNode->m_depth == BUILD_TREE_MAX_DEPTH-1 ) // <-- correct, must be build_tree_max_depth
+        vec3 bSize = stNode->m_max - stNode->m_min;
+        float dMin = _min(bSize.x, _min(bSize.y, bSize.z));
+
+        if ( (dMin < MIN_LEAF_SIZE) || (stNode->m_depth == BUILD_TREE_MAX_DEPTH-1) ) // <-- correct, must be build_tree_max_depth
         {
         #if _DEBUG
             bmValidateAABB( stNode->m_min, stNode->m_max );
@@ -204,58 +207,42 @@ GLOBAL void bmInsertTriangleInTree( const vec3* RESTRICT vertices, const uint3* 
         else
         {
             assert( top+2 < TREE_SEARCH_DEPTH );
-            u32 ndepth = stNode->m_depth+1;
-            u32 spAxis = stNode->m_splitAxis;
             vec3 stMin = stNode->m_min;
             vec3 stMax = stNode->m_max;
+            u32 ndepth = stNode->m_depth+1;
+            u32 spAxis = stNode->m_splitAxis;
+            u32 nAxis  = (spAxis+1)%3;
             float s    = .5f*(stMin[spAxis]+stMax[spAxis]);
-            vec3 lMax, rMin;
-            u32 naxis;
-            switch ( spAxis )
-            {
-            case 0:
-                lMax = vec3(s, stMax.y, stMax.z);
-                rMin = vec3(s, stMin.y, stMin.z);
-                naxis = 1;
-                break;
-            case 1:
-                lMax = vec3(stMax.x, s, stMax.z);
-                rMin = vec3(stMin.x, s, stMin.z);
-                naxis = 2;
-                break;
-            case 2:
-                lMax = vec3(stMax.x, stMax.y, s);
-                rMin = vec3(stMin.x, stMin.y, s);
-                naxis = 0;
-                break;
-            }
-            bool b1 = bmAABBOverlap2( triMin, triMax, stMin, lMax );
-            bool b2 = bmAABBOverlap2( triMin, triMax, rMin, stMax );
+            vec3 lMax  = stMax;
+            vec3 rMin  = stMin;
+            lMax[spAxis] = s;
+            rMin[spAxis] = s;
+            vec3 bc = (lMax+stMin)*.5f;
+            vec3 hs = (lMax-stMin)*.5f;
+            bool b1 = triBoxOverlap( &bc.x, &hs.x, v );
+            bc = (stMax+rMin)*.5f;
+            hs = (stMax-rMin)*.5f;
+            bool b2 = triBoxOverlap( &bc.x, &hs.x, v );
+            // bool b1 = bmAABBOverlap2( triMin, triMax, stMin, lMax );
+            // bool b2 = bmAABBOverlap2( triMin, triMax, rMin, stMax );
             node->split2( b1, b2, nodeStore );
-            if ( b1 )
-            {
-                bmTreeNode* nodeL = node->m_left;
-                //stNode = b1?&stack[++top]:&dummy;
-                stNode = &stack[++top];
-                stNode->m_min   = stMin;
-                stNode->m_max   = lMax;
-                stNode->m_node  = nodeL;
-                stNode->m_depth = ndepth;
-                stNode->m_splitAxis = naxis;
-            }
-            if ( b2 )
-            {
-                bmTreeNode* nodeR = node->m_right;
-               // stNode = b2?&stack[++top]:&dummy;
-                stNode = &stack[++top];
-                stNode->m_min    = rMin;
-                stNode->m_max    = stMax;
-                stNode->m_node   = nodeR;
-                stNode->m_depth  = ndepth;
-                stNode->m_splitAxis = naxis;
-            }
+            bmTreeNode* RESTRICT nodeL = node->m_left;
+            bmTreeNode* RESTRICT nodeR = node->m_right;
+            // push left
+            stNode = b1?&stack[++top]:&dummy;
+            stNode->m_min   = stMin;
+            stNode->m_max   = lMax;
+            stNode->m_node  = nodeL;
+            stNode->m_depth = ndepth;
+            stNode->m_splitAxis = nAxis;
+            // push right
+            stNode = b2?&stack[++top]:&dummy;
+            stNode->m_min    = rMin;
+            stNode->m_max    = stMax;
+            stNode->m_node   = nodeR;
+            stNode->m_depth  = ndepth;
+            stNode->m_splitAxis = nAxis; 
         }
-        
     } while ( top >= 0 );
 }
 
@@ -307,6 +294,60 @@ void bmInsertMeshInTree( const vec3* vertices,
                 t_nodeStore, t_material
             );
         }
+    }
+    // Debug info
+    {
+        bmStackNode dummy;
+        bmStackNode stack[TREE_SEARCH_DEPTH];
+        stack[0].init(t_rootNode, bMin, bMax, 0, 0);
+        i32 top = 0;
+        u64 avgDepth = 0;
+        u64 numLeafs = 0;
+        u32 maxDepth = 0;
+        u64 numFaces = 0;
+        u64 avgFacesPerLeaf = 0;
+        do
+        {
+            bmStackNode* RESTRICT stNode = &stack[top--];
+            assert(stNode && stNode->m_node);
+            bmTreeNode* RESTRICT node = stNode->m_node;
+            if ( !node->m_right && !node->m_left ) // is leaf
+            {
+                avgDepth += stNode->m_depth;
+                numLeafs += 1;
+                maxDepth = _max(maxDepth, stNode->m_depth);
+                numFaces += node->m_faceInsertIdx;
+                avgFacesPerLeaf += node->m_faceInsertIdx;
+                vec3 dt = stNode->m_max-stNode->m_min;
+                printf("Leaf-> Depth %d Size: %.3f %.3f %.3f\n", stNode->m_depth, dt.x, dt.y, dt.z);
+            }
+            else
+            {
+                u32 spAxis = stNode->m_splitAxis;
+                u32 nAxis  = (spAxis+1)%3;
+                u32 depth  = stNode->m_depth+1;
+                vec3 stMin = stNode->m_min;
+                vec3 stMax = stNode->m_max;
+                vec3 lmax  = stMax;
+                vec3 rmin  = stMin;
+                float s = (stMax[spAxis]+stMin[spAxis])*.5f;
+                lmax[spAxis] = s;
+                rmin[spAxis] = s;
+                if ( node->m_left )
+                {
+                    ++top;
+                    stack[top].init(node->m_left, stMin, lmax, nAxis, depth);
+                }
+                if ( node->m_right )
+                {
+                    ++top;
+                    stack[top].init(node->m_right, rmin, stMax, nAxis, depth);
+                }
+            }
+        }
+        while ( top >= 0 );
+        printf("Tree Faces: %d, Nodes %d, FacePtrs %d\n", t_faceStore->m_top, t_nodeStore->m_top, t_faceGroupStore->m_top);
+        printf("MaxDepth: %d, AvgDepth %zd, NumLeafs %zd, numFaces %zd, avgFacesPerLeaf %zd\n", maxDepth, avgDepth/numLeafs, numLeafs, numFaces, avgFacesPerLeaf/numLeafs);
     }
 #endif
 }

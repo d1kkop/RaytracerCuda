@@ -130,7 +130,7 @@ int planeBoxOverlap(float normal[3], float vert[3], float maxbox[3])	// -NJMP-
 	rad = fa * boxhalfsize[X] + fb * boxhalfsize[Y];   \
 	if(_min>rad || _max<-rad) return 0;
 
-
+extern "C"
 FDEVICE
 int triBoxOverlap(float* boxcenter,float* boxhalfsize,vec3 triverts[3])
 {

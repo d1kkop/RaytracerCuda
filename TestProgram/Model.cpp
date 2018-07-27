@@ -2,6 +2,10 @@
 #include "../Raytracer/Beam.h"
 #include "../Raytracer/Types.h"
 #include "../Raytracer/Util.h"
+#include "glm/common.hpp"
+#include "glm/geometric.hpp"
+#include "glm/vec3.hpp"
+#include "glm/mat3x3.hpp"
 #include "assimp/Importer.hpp"
 #include "assimp/scene.h"
 #include "assimp/postprocess.h"
@@ -10,9 +14,15 @@
 using namespace Assimp;
 using namespace std;
 using namespace Beam;
+using namespace glm;
 
 namespace TestProgram
 {
+    float _min2(float a, float b) { return a < b ? a : b; }
+    float _max2(float a, float b) { return a > b ? a : b; }
+    vec3 _min2(const vec3& a, const vec3& b) { return vec3(_min2(a.x, b.x), _min2(a.y, b.y), _min2(a.z, b.z)); }
+    vec3 _max2(const vec3& a, const vec3& b) { return vec3(_max2(a.x, b.x), _max2(a.y, b.y), _max2(a.z, b.z)); }
+
     bool Model::load(const std::string& name, sptr<IScene>& toScene, int numAdds)
     {
         // Create an instance of the Importer class
@@ -34,6 +44,8 @@ namespace TestProgram
         // Now we can access the file's contents.
         u32 totalVertices =0;
         u32 totalFaces =0;
+        vec3 bMin(FLT_MAX);
+        vec3 bMax(FLT_MIN);
         for (u32 i = 0; i < scene->mNumMeshes ; i++)
         {
         	const aiMesh* mesh  = scene->mMeshes[i];
@@ -54,6 +66,17 @@ namespace TestProgram
                 assert(indices[i*3+0]  < mesh->mNumVertices);
                 assert(indices[i*3+1]  < mesh->mNumVertices);
                 assert(indices[i*3+2]  < mesh->mNumVertices);
+                vec3 v[3] =
+                {
+                    *(vec3*)&mesh->mVertices[indices[i*3+0]],
+                    *(vec3*)&mesh->mVertices[indices[i*3+1]],
+                    *(vec3*)&mesh->mVertices[indices[i*3+2]]
+                };
+                for ( auto& vs : v )
+                {
+                    bMin = _min2(bMin, vs);
+                    bMax = _max2(bMax, vs);
+                }
             }
             gpuMesh->setIndices(indices, mesh->mNumFaces*3 );
             delete [] indices;
@@ -89,7 +112,15 @@ namespace TestProgram
                 assert(err==0);
             }
         }
-        cout << endl << "Model " << name << " Faces: " << (float)totalFaces/(1000000) << " Vertices: " << (float)totalVertices/(1000000) << endl;
+        printf("\n\n");
+        printf("Model: %s\n", name.c_str());
+        printf("Faces: %fM\n", (float)totalFaces/(1000000));
+        printf("Vertices: %fM\n", (float)totalVertices/(1000000));
+        printf("bMin %.3f %.3f %.3f\n", bMin.x, bMin.y, bMin.z);
+        printf("bMax %.3f %.3f %.3f\n", bMax.x, bMax.y, bMax.z);
+        vec3 dt = bMax-bMin;
+        printf("Size %.3f %.3f %.3f\n", dt.x, dt.y, dt.z);
+        printf("\n");
         // We're done. Everything will be cleaned up by the importer destructor
         return true;
     }
