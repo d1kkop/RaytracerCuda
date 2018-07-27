@@ -1,13 +1,14 @@
 #include "BuildTree.cuh"
+#include "BoxTriangle.cu"
 
 #define NUM_RESET_THREADS 256
 #define BUILD_CELLS_THREADS BUILD_TREE_THREADS
 #define MARCH_CELLS_THREADS MARCH_THREADS
-#define NUM_FACES_PER_CELL 32
-#define CELL_RES 0.05f
+#define NUM_FACES_PER_CELL 256
+#define CELL_RES 0.03f
 #define INV_CELL_RES (1.f/CELL_RES)
 #define CELL_PINCH_TROUGH_EPSILON (CELL_RES*0.001f)
-#define MAX_SEARCH_ITERS 100
+#define MAX_SEARCH_ITERS 400
 
 // -------- Support ---------------------------------------------------------------------------------------------------------------
 
@@ -162,9 +163,17 @@ GLOBAL void bmInsertTriangleInSpace( const vec3* vertices,
     for ( ; y1 <= y2; ++y1 )
     for ( ; x1 <= x2; ++x1 )
     {
-        uint3 p = make_uint3(x1, y1, z1);
-        u32 h   = bmHash3( p );
-        cells[h].addFace( idx, meshIdx, mat );
+        vec3 bMin = vec3( x1, y1, z1 )*CELL_RES;
+        vec3 bMax = bMin + vec3(CELL_RES, CELL_RES, CELL_RES);
+        vec3 bc = (bMax+bMin)*.5f;
+        vec3 hs = (bMax-bMin)*.5f;
+        bool b  = triBoxOverlap( &bc.x, &hs.x, v );
+        if ( b )
+        {
+            uint3 p = make_uint3(x1, y1, z1);
+            u32 h   = bmHash3( p );
+            cells[h].addFace( idx, meshIdx, mat );
+        }
     }
 }
 
@@ -251,19 +260,13 @@ GLOBAL void bmMarchKernelSpace( const vec3* initialRays, u32 numRays,
         bmCell* c = cells + h;
 
         // Check if p is actually inside of cell or that the cell arose from hash collision.
-        if (c->m_faceIdx>0 &&
-            (p.x >= cp.x) && 
-            (p.x <= cp.x+CELL_RES) && 
-            (p.y >= cp.y) && 
-            (p.y <= cp.y+CELL_RES) && 
-            (p.z >= cp.z) &&
-            (p.z <= cp.z+CELL_RES))
+        if (c->m_faceIdx)
         {
             bmFace* faces = c->m_faces;
 
             u32 maxLoop = _min( (u32)NUM_FACES_PER_CELL, c->m_faceIdx );
             #pragma unroll
-            for ( u32 i=0; i<NUM_FACES_PER_CELL; i++ )
+            for ( u32 i=0; i<maxLoop; i++ )
             {
                 float u=0,v=0;
                 float kDist  = bmFaceRayIntersect(faces + i, eye, dir, meshDataPtrs, u, v);

@@ -6,8 +6,6 @@ using namespace std;
 
 //constexpr float kEpsilon = 0.000001f;
 
-extern int triBoxOverlap(float boxcenter[3],float boxhalfsize[3],float triverts[3][3]);
-
 //// Vectormath https://github.com/erwincoumans/sce_vectormath
 //class Ray
 //{
