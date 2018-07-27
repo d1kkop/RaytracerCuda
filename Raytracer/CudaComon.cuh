@@ -155,10 +155,11 @@ float bmBoxRayIntersect(const vec3& bMin, const vec3& bMax,
 {
     vec3 tMin   = (bMin - orig) * invDir;
     vec3 tMax   = (bMax - orig) * invDir;
-    vec3 tMin2  = _min(tMin, tMax);
     vec3 tMax2  = _max(tMin, tMax);
-    float ftmin = _max(tMin2.x, _max(tMin2.y, tMin2.z));
     float ftmax = _min(tMax2.x, _min(tMax2.y, tMax2.z));
+    if ( ftmax < 0.f ) return FLT_MAX;
+    vec3 tMin2  = _min(tMin, tMax);
+    float ftmin = _max(tMin2.x, _max(tMin2.y, tMin2.z));
     float dist  = _max(0.f, ftmin);
     dist = (ftmax >= ftmin ? dist : FLT_MAX);
     return dist;

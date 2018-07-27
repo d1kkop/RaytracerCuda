@@ -476,10 +476,9 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
     if ( dClosest != FLT_MAX )
     {
         assert( fClosest );
-        vec4 n = bmFaceInterpolate( fClosest, tU, tV, meshDataPtrs, 1 );
-        n.w = 0.f;
-        n = normalize( n );
-        buffer[i] = (u32)(fabs(n.z)*255) << 16;
+        vec4 n  = bmFaceInterpolate( fClosest, tU, tV, meshDataPtrs, 1 );
+        vec3 nn = normalize( n );
+        buffer[i] = (u32)((-nn.z)*255) << 16;
     }
     else
     {

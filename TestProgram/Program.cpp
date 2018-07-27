@@ -11,6 +11,8 @@
 #include "glm/geometric.hpp"
 #include "glm/vec3.hpp"
 #include "glm/mat3x3.hpp"
+#include "glm/mat4x4.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 using namespace std;
 using namespace glm;
 using namespace Beam;
@@ -92,6 +94,10 @@ namespace TestProgram
         //printf("Unique: %zd\n", hh.size());
 
         //int j = 0;
+
+        m_pos = vec3(0.f, 0.f, -2.1f);
+        m_pan = 0;
+        m_pitch = 0;
     }
 
     Program::~Program()
@@ -125,9 +131,14 @@ namespace TestProgram
         u32 err=0;
         m_scene = IScene::create();
 
+        if ( !Model::load(R"(D:\_Programming\2018\RaytracerCuda\Content/armadillo.obj)", m_scene, 1) )
+        {
+            cout << "Failed to load armadillo" << endl;
+        }
+
         if ( !Model::load(R"(D:\_Programming\2018\RaytracerCuda\Content/f16.obj)", m_scene, 1) )
         {
-            cout << "Failed to load bunny" << endl;
+            cout << "Failed to load f16" << endl;
         }
 
 
@@ -186,12 +197,36 @@ namespace TestProgram
             // handle window events
             ProfileItem input("Poll");
             SDL_Event event;
+            vec3 move(0);
+            float speed = .3f;
+            float mspeed = 0.004f;
+            static bool kds[6] ={ false, false, false, false };
             while ( SDL_PollEvent(&event) )
             {
                 switch ( event.type )
                 {
                 case SDL_KEYDOWN:
                     if ( event.key.keysym.sym == SDLK_ESCAPE ) return;
+                    if ( event.key.keysym.sym == SDLK_a ) kds[0]=true;
+                    if ( event.key.keysym.sym == SDLK_d ) kds[1]=true;
+                    if ( event.key.keysym.sym == SDLK_w ) kds[2]=true;
+                    if ( event.key.keysym.sym == SDLK_s ) kds[3]=true;
+                    if ( event.key.keysym.sym == SDLK_q ) kds[4]=true;
+                    if ( event.key.keysym.sym == SDLK_e ) kds[5]=true;
+                    break;
+
+                case SDL_KEYUP:
+                    if ( event.key.keysym.sym == SDLK_a ) kds[0]=false;
+                    if ( event.key.keysym.sym == SDLK_d ) kds[1]=false;
+                    if ( event.key.keysym.sym == SDLK_w ) kds[2]=false;
+                    if ( event.key.keysym.sym == SDLK_s ) kds[3]=false;
+                    if ( event.key.keysym.sym == SDLK_q ) kds[4]=false;
+                    if ( event.key.keysym.sym == SDLK_e ) kds[5]=false;
+                    break;
+
+                case SDL_MOUSEMOTION:
+                    m_pan += event.motion.xrel * mspeed;
+                    m_pitch -= event.motion.yrel * mspeed;
                     break;
 
                 case SDL_QUIT:
@@ -201,6 +236,20 @@ namespace TestProgram
             }
             pushProfile(input);
 
+            // Update 
+            if ( kds[0] ) move.x -= speed;
+            if ( kds[1] ) move.x += speed;
+            if ( kds[2] ) move.z += speed;
+            if ( kds[3] ) move.z -= speed;
+
+            mat4 yaw   = rotate(m_pan, vec3(0.f, 1.f, 0.f));
+            mat4 pitch = rotate(m_pitch, vec3(1.f, 0.f, 0.f));
+            mat3 orient = (yaw * pitch);
+      //      m_pos += orient*move;
+            if ( kds[4] ) m_pos.y += speed;
+            if ( kds[5] ) m_pos.y -= speed;
+
+            // Draw
             renderFrame();
         }
     }
@@ -208,7 +257,7 @@ namespace TestProgram
     void Program::initSDL(const string& name, u32 width, u32 height)
     {
         SDL_CALL(SDL_Init(SDL_INIT_VIDEO));
-        u32 flags   = SDL_WINDOW_OPENGL; //  | SDL_WINDOW_FULLSCREEN;
+        u32 flags   = SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN;
         m_window    = SDL_CreateWindow(name.c_str(), 100, 100, width, height, flags);
         m_renderer  = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
         m_glContext = SDL_GL_CreateContext(m_window);
@@ -265,9 +314,10 @@ namespace TestProgram
         // -- Trace scene --
         ProfileItem piTrace("Trace");
         {
-            vec3 eye    = vec3(0, 0, -2.1f);
-            mat3 orient = mat3(1.f);
-            err = m_camera->traceScene(&eye.x, &orient[0][0], m_scene);
+            mat4 yaw   = rotate(m_pan, vec3(0.f, 1.f, 0.f));
+            mat4 pitch = rotate(m_pitch, vec3(1.f, 0.f, 0.f));
+            mat3 orient = mat3(1); //( yaw * pitch );
+            err = m_camera->traceScene(&m_pos.x, &orient[0][0], m_scene);
             assert(err==0);
         } 
         cudaDeviceSynchronize(); // DEBUG

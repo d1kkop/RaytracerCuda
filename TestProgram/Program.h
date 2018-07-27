@@ -5,13 +5,16 @@
 #include "../Raytracer/Blob.h"
 #include "../Raytracer/Util.h"
 #include "../Raytracer/GLinterop.h"
+#include "glm/common.hpp"
+#include "glm/geometric.hpp"
+#include "glm/vec3.hpp"
 #include <string>
 
 struct SDL_Window;
 struct SDL_Renderer;
 
 using namespace Beam;
-
+using namespace glm;
 
 namespace TestProgram
 {
@@ -52,6 +55,11 @@ namespace TestProgram
         sptr<ICamera>  m_camera;
         sptr<Gradient> m_gradient;
         sptr<Blob>     m_blob;
+
+        // camera
+        float m_pan;
+        float m_pitch;
+        vec3 m_pos;
 
         // using openGL interop
         GLTextureBufferRenderer m_glRenderer;

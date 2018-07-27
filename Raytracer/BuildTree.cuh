@@ -14,8 +14,8 @@ using namespace Beam;
 // tree memory
 #define BUILD_TREE_MAX_DEPTH 38
 #define TREE_SEARCH_DEPTH BUILD_TREE_MAX_DEPTH
-#define MAX_FACES_PER_BOX 8
-#define MIN_LEAF_SIZE 0.02f
+#define MAX_FACES_PER_BOX 512
+#define MIN_LEAF_SIZE 0.04f
 
 // Hash world
 #define MAX_HASH_ELEMENTS 65536UL
@@ -81,8 +81,6 @@ struct bmStackNode
     FDEVICE bool intersect(const vec3& triMin, const vec3& triMax);
 };
 
-
-
 FDEVICE INLINE float bmFaceRayIntersect(bmFace* face, const vec3& eye, const vec3& dir, const StaticMeshData* meshDataPtrs, float& u, float& v)
 {
     assert( meshDataPtrs );
@@ -92,20 +90,6 @@ FDEVICE INLINE float bmFaceRayIntersect(bmFace* face, const vec3& eye, const vec
     assert( mesh->m_vertexDataSizes[ VERTEX_DATA_POSITION ] == 3 );
     return bmTriIntersect( eye, dir, vp[idx.x], vp[idx.y], vp[idx.z], u, v );
 }
-
-FDEVICE INLINE vec4 getData1(float* vd) { return vec4(vd[0], 0.f, 0.f, 0.f); }
-FDEVICE INLINE vec4 getData2(float* vd) { return vec4(vd[0], vd[1], 0.f, 0.f); }
-FDEVICE INLINE vec4 getData3(float* vd) { return vec4(vd[0], vd[1], vd[2], 0.f); }
-FDEVICE INLINE vec4 getData4(float* vd) { return vec4(vd[0], vd[1], vd[2], vd[3]); }
-
-using fGetData = vec4 (*)(float*);
-static CONSTANT fGetData c_getData[4] = 
-{
-    &getData1,
-    &getData2,
-    &getData3,
-    &getData4
-};
 
 FDEVICE INLINE vec4 bmFaceInterpolate(bmFace* face, float u, float v, const StaticMeshData* meshDataPtrs, u32 dataIdx)
 {
@@ -119,10 +103,25 @@ FDEVICE INLINE vec4 bmFaceInterpolate(bmFace* face, float u, float v, const Stat
     float* vd1 = vd + idx.x*dsize;
     float* vd2 = vd + idx.y*dsize;
     float* vd3 = vd + idx.z*dsize;
-    vec4 vu = c_getData[dsize]( vd1 ) * u;
-    vec4 vv = c_getData[dsize]( vd2 ) * v;
-    vec4 vw = c_getData[dsize]( vd3 ) * (1.f-(u+v));
-    return vu + vv + vw;
+    float w = 1-(u+v);
+    switch ( dsize )
+    {
+    case 1:
+        return vec4(vd1[0]*u + vd2[0]*v + vd3[0]*w, 0.f, 0.f, 0.f);
+    case 2:
+        return vec4(vd1[0]*u + vd2[0]*v + vd3[0]*w, 
+                    vd1[1]*u + vd2[1]*v + vd3[1]*w, 0.f, 0.f);
+    case 3:
+        return vec4(vd1[0]*u + vd2[0]*v + vd3[0]*w, 
+                    vd1[1]*u + vd2[1]*v + vd3[1]*w,
+                    vd1[2]*u + vd2[2]*v + vd3[2]*w, 0.f);
+    case 4:
+        return vec4(vd1[0]*u + vd2[0]*v + vd3[0]*w, 
+                    vd1[1]*u + vd2[1]*v + vd3[1]*w,
+                    vd1[2]*u + vd2[2]*v + vd3[2]*w,
+                    vd1[3]*u + vd2[3]*v + vd3[3]*w);
+    }
+    return vec4(0.f);
 }
 
 #endif
