@@ -14,8 +14,8 @@ using namespace Beam;
 // tree memory
 #define BUILD_TREE_MAX_DEPTH 38
 #define TREE_SEARCH_DEPTH BUILD_TREE_MAX_DEPTH
-#define MAX_FACES_PER_BOX 512
-#define MIN_LEAF_SIZE 0.04f
+#define MAX_FACES_PER_BOX 256
+#define MIN_LEAF_SIZE .03f
 
 // Hash world
 #define MAX_HASH_ELEMENTS 65536UL
@@ -112,9 +112,9 @@ FDEVICE INLINE vec4 bmFaceInterpolate(bmFace* face, float u, float v, const Stat
         return vec4(vd1[0]*u + vd2[0]*v + vd3[0]*w, 
                     vd1[1]*u + vd2[1]*v + vd3[1]*w, 0.f, 0.f);
     case 3:
-        return vec4(vd1[0]*u + vd2[0]*v + vd3[0]*w, 
-                    vd1[1]*u + vd2[1]*v + vd3[1]*w,
-                    vd1[2]*u + vd2[2]*v + vd3[2]*w, 0.f);
+        return vec4(vd1[0]*u + vd2[0]*w + vd3[0]*w, 
+                    vd1[1]*u + vd2[1]*w + vd3[1]*w,
+                    vd1[2]*u + vd2[2]*w + vd3[2]*w, 0.f);
     case 4:
         return vec4(vd1[0]*u + vd2[0]*v + vd3[0]*w, 
                     vd1[1]*u + vd2[1]*v + vd3[1]*w,

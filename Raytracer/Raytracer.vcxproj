@@ -147,9 +147,15 @@
     <CudaCompile Include="BoxTriangle.cu" />
     <CudaCompile Include="BuildTree.cu" />
     <CudaCompile Include="Gradient.cu" />
-    <CudaCompile Include="Hash.cu" />
+    <CudaCompile Include="Hash.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </CudaCompile>
     <CudaCompile Include="RTClear.cu" />
-    <CudaCompile Include="Trace.cu" />
+    <CudaCompile Include="Trace.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </CudaCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Blob.cpp" />

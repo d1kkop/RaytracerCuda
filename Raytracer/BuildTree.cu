@@ -229,19 +229,27 @@ GLOBAL void bmInsertTriangleInTree( const vec3* RESTRICT vertices, const uint3* 
             bmTreeNode* RESTRICT nodeL = node->m_left;
             bmTreeNode* RESTRICT nodeR = node->m_right;
             // push left
-            stNode = b1?&stack[++top]:&dummy;
-            stNode->m_min   = stMin;
-            stNode->m_max   = lMax;
-            stNode->m_node  = nodeL;
-            stNode->m_depth = ndepth;
-            stNode->m_splitAxis = nAxis;
+         //   stNode = b1?&stack[++top]:&dummy;
+            if ( b1 )
+            {
+                stNode = &stack[++top];
+                stNode->m_min   = stMin;
+                stNode->m_max   = lMax;
+                stNode->m_node  = nodeL;
+                stNode->m_depth = ndepth;
+                stNode->m_splitAxis = nAxis;
+            }
             // push right
-            stNode = b2?&stack[++top]:&dummy;
-            stNode->m_min    = rMin;
-            stNode->m_max    = stMax;
-            stNode->m_node   = nodeR;
-            stNode->m_depth  = ndepth;
-            stNode->m_splitAxis = nAxis; 
+            //stNode = b2?&stack[++top]:&dummy;
+            if ( b2 )
+            {
+                stNode = &stack[++top];
+                stNode->m_min    = rMin;
+                stNode->m_max    = stMax;
+                stNode->m_node   = nodeR;
+                stNode->m_depth  = ndepth;
+                stNode->m_splitAxis = nAxis;
+            }
         }
     } while ( top >= 0 );
 }
@@ -355,10 +363,10 @@ void bmInsertMeshInTree( const vec3* vertices,
 // -------- bmMarchKernel -----------------------------------------------------------------------------------------------------------
 
 
-GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
+GLOBAL void bmMarchKernel(bmTreeNode* RESTRICT root, vec3 bMin, vec3 bMax,
                               const vec3* initialRays, u32 numRays,
                               u32* buffer, vec3 eye, mat3 orient,
-                              const StaticMeshData* meshDataPtrs )
+                              const StaticMeshData* RESTRICT meshDataPtrs )
 {
     assert(root && initialRays && buffer && meshDataPtrs);
 
@@ -371,8 +379,9 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
 
 //    __shared__ bmStackNode s_stack[BUILD_TREE_THREADS][TREE_SEARCH_DEPTH];
 //    bmStackNode* stack = s_stack[tIdx.x];
+
     bmStackNode stack[TREE_SEARCH_DEPTH];
-    bmStackNode* st = &stack[0];
+    bmStackNode* RESTRICT st = &stack[0];
 
     st->init( root, bMin, bMax, 0, 0 );
     i32 top  = 0;
@@ -425,29 +434,29 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
             {
                 assert( st );
                 assert( top+2 < TREE_SEARCH_DEPTH );
-                u32 axis   = st->m_splitAxis;
-                u32 naxis  = (axis+1)%3;
-                vec3 _min  = st->m_min;
-                vec3 _max  = st->m_max;
-                float s    = .5f*(_max[axis]+_min[axis]);
-                float p    = eye[axis] + boxDist*dir[axis];
+                vec3 stMin  = st->m_min;
+                vec3 stMax  = st->m_max;
+                u32 axis    = st->m_splitAxis;
+                u32 naxis   = (axis+1)%3;
+                float s     = .5f*(stMax[axis]+stMin[axis]);
+                float p     = eye[axis] + boxDist*dir[axis];
                 if ( p < s ) // on 'left' side
                 {
                     // push right first
                     if ( curNode->m_right )
                     {
-                        float t = _min[axis];    // remember old _min[axis]
-                        _min[axis] = s;          // overwrite
-                        st = &stack[++top];      // push on stack
-                        st->init(curNode->m_right, _min, _max, naxis, 0);
-                        _min[axis] = t;         // restore _min[axis]
+                        st = &stack[++top];
+                        float t = stMin[axis];
+                        stMin[axis] = s;
+                        st->init(curNode->m_right, stMin, stMax, naxis, 0);
+                        stMin[axis] = t; 
                     }
                     // push left now
                     if ( curNode->m_left )
                     {
-                        _max[axis] = s;         // set _max[axis] for left
-                        st = &stack[++top];     // push
-                        st->init(curNode->m_left, _min, _max, naxis, 0);
+                        st = &stack[++top];
+                        stMax[axis] = s;
+                        st->init(curNode->m_left, stMin, stMax, naxis, 0);
                     }
                 }
                 else // on 'right' side
@@ -455,18 +464,18 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
                     // push left first
                     if ( curNode->m_left )
                     {
-                        float t = _max[axis];    // remember old _min[axis]
-                        _max[axis] = s;          // set _max[axis] for left
-                        st = &stack[++top];      // push on stack
-                        st->init(curNode->m_left, _min, _max, naxis, 0);
-                        _max[axis] = t;          // restore _max[axis] value
+                        st = &stack[++top];
+                        float t = stMax[axis];
+                        stMax[axis] = s;
+                        st->init(curNode->m_left, stMin, stMax, naxis, 0);
+                        stMax[axis] = t;
                     }
                     // push right now
                     if ( curNode->m_right )
                     {
-                        _min[axis] = s;          // set _min[axis] split value       
-                        st = &stack[++top];      // push
-                        st->init(curNode->m_right, _min, _max, naxis, 0);
+                        st = &stack[++top]; 
+                        stMin[axis] = s;   
+                        st->init(curNode->m_right, stMin, stMax, naxis, 0);
                     }
                 }
             }
@@ -476,7 +485,7 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
     if ( dClosest != FLT_MAX )
     {
         assert( fClosest );
-        vec4 n  = bmFaceInterpolate( fClosest, tU, tV, meshDataPtrs, 1 );
+        vec4 n  = bmFaceInterpolate( fClosest, tV, tU, meshDataPtrs, 1 );
         vec3 nn = normalize( n );
         buffer[i] = (u32)((-nn.z)*255) << 16;
     }

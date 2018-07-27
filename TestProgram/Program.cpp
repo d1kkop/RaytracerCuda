@@ -178,7 +178,7 @@ namespace TestProgram
 
 //        u32 err;
         m_camera = ICamera::create();
-        err = m_camera->setInitialRays( width, height );
+        err = m_camera->setInitialRays( width, height, -1, 1, -1, 1, 1 );
         assert(err==0);
 
         err = m_textureBufferObject[0].renderTarget()->lock();
@@ -226,7 +226,7 @@ namespace TestProgram
 
                 case SDL_MOUSEMOTION:
                     m_pan += event.motion.xrel * mspeed;
-                    m_pitch -= event.motion.yrel * mspeed;
+                    m_pitch += event.motion.yrel * mspeed;
                     break;
 
                 case SDL_QUIT:
@@ -245,7 +245,7 @@ namespace TestProgram
             mat4 yaw   = rotate(m_pan, vec3(0.f, 1.f, 0.f));
             mat4 pitch = rotate(m_pitch, vec3(1.f, 0.f, 0.f));
             mat3 orient = (yaw * pitch);
-      //      m_pos += orient*move;
+            m_pos += orient*move;
             if ( kds[4] ) m_pos.y += speed;
             if ( kds[5] ) m_pos.y -= speed;
 
@@ -257,7 +257,7 @@ namespace TestProgram
     void Program::initSDL(const string& name, u32 width, u32 height)
     {
         SDL_CALL(SDL_Init(SDL_INIT_VIDEO));
-        u32 flags   = SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN;
+        u32 flags   = SDL_WINDOW_OPENGL;// | SDL_WINDOW_FULLSCREEN;
         m_window    = SDL_CreateWindow(name.c_str(), 100, 100, width, height, flags);
         m_renderer  = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
         m_glContext = SDL_GL_CreateContext(m_window);
@@ -316,7 +316,7 @@ namespace TestProgram
         {
             mat4 yaw   = rotate(m_pan, vec3(0.f, 1.f, 0.f));
             mat4 pitch = rotate(m_pitch, vec3(1.f, 0.f, 0.f));
-            mat3 orient = mat3(1); //( yaw * pitch );
+            mat3 orient = ( yaw * pitch );
             err = m_camera->traceScene(&m_pos.x, &orient[0][0], m_scene);
             assert(err==0);
         } 
