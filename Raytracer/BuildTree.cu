@@ -430,8 +430,8 @@ GLOBAL void bmMarchKernel(bmTreeNode* root, vec3 bMin, vec3 bMax,
                 vec3 _min  = st->m_min;
                 vec3 _max  = st->m_max;
                 float s    = .5f*(_max[axis]+_min[axis]);
-                vec3 p     = eye + boxDist*dir;
-                if ( p[axis] < s ) // on 'left' side
+                float p    = eye[axis] + boxDist*dir[axis];
+                if ( p < s ) // on 'left' side
                 {
                     // push right first
                     if ( curNode->m_right )
