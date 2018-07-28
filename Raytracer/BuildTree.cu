@@ -370,6 +370,7 @@ GLOBAL void bmMarchKernel(bmTreeNode* RESTRICT root, vec3 bMin, vec3 bMax,
 {
     assert(root && initialRays && buffer && meshDataPtrs);
 
+    // lala
     u32 i = bIdx.x * bDim.x + tIdx.x;
     i = _min(i, numRays-1);
 
