@@ -7,7 +7,6 @@
 
 namespace Beam
 {
-    __align__(16)
     struct StaticMeshData
     {
         /* All Device ptrs */
@@ -18,9 +17,22 @@ namespace Beam
         u32  m_numIndices;
     };
 
-    __align__(16)
-    struct DynamicMeshData: public StaticMeshData
+    struct bmMaterial
     {
-        glm::mat4 m_transform;
+        int texture;
     };
+
+    struct bmFace
+    {
+        uint4 m_index; // x,y,z indices, w meshIdx
+        bmMaterial* m_material;
+    };
+
+    struct bmRayFaceHitResult
+    {
+        bmFace* face;
+        float dist, u, v;
+    };
+    
+    using bmHitCallback = void (*)( u32, const bmRayFaceHitResult*, const StaticMeshData*, u32* buffer );
 }

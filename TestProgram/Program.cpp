@@ -131,10 +131,10 @@ namespace TestProgram
         u32 err=0;
         m_scene = IScene::create();
 
-        if ( !Model::load(R"(D:\_Programming\2018\RaytracerCuda\Content/armadillo.obj)", m_scene, 1) )
-        {
-            cout << "Failed to load armadillo" << endl;
-        }
+        //if ( !Model::load(R"(D:\_Programming\2018\RaytracerCuda\Content/armadillo.obj)", m_scene, 1) )
+        //{
+        //    cout << "Failed to load armadillo" << endl;
+        //}
 
         if ( !Model::load(R"(D:\_Programming\2018\RaytracerCuda\Content/f16.obj)", m_scene, 1) )
         {

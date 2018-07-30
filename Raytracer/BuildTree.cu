@@ -362,75 +362,6 @@ void bmInsertMeshInTree( const vec3* vertices,
 
 // -------- bmMarchKernel -----------------------------------------------------------------------------------------------------------
 
-DEVICE void bmMarchKernel_CheckTriangles(bmTreeNode* RESTRICT curNode,
-                                         vec3 eye, vec3 dir, vec3 invDir,
-                                         const StaticMeshData* RESTRICT meshDataPtrs)
-{
-    bmFace* face = curNode->m_faces[tIdx.x];
-    float u, v;
-    float d = bmFaceRayIntersect( face, eye, dir, meshDataPtrs, u, v );
-    //if ( d < dClosest )
-    //{
-    //    dClosest = d;
-    //    fClosest = face;
-    //    tU = u;
-    //    tV = v;
-    //}
-}
-
-GLOBAL void bmMarchKernel_Child(bmTreeNode* RESTRICT curNode, 
-                                vec3 bMin, vec3 bMax, u32 spAxis,
-                                vec3 eye, vec3 dir, vec3 invDir,
-                                const StaticMeshData* RESTRICT meshDataPtrs)
-{
-    if ( !bmBoxRayIntersect( bMin, bMax, eye, invDir ) )
-        return;
-
-    if ( !curNode->m_right && !curNode->m_left ) // is leaf
-    {
-        if ( curNode->m_faces )
-        {
-            // check intersections ray triangle list
-            u32 maxLoop = _min((u32)MAX_FACES_PER_BOX, curNode->m_faceInsertIdx);
-
-            bmMarchKernel_CheckTriangles<<<1, 1>>>(
-                curNode,
-                eye, dir, invDir,
-                meshDataPtrs
-                );
-        }
-        
-        return;
-    }
-       
-    u32 nAxis   = (spAxis+1)%3;
-    float s     = .5f*(bMin[spAxis]+bMax[spAxis]);
-    // push left
-    if ( curNode->m_left )
-    {
-        float t = bMax[spAxis];
-        bMax[spAxis] = s;
-        bmMarchKernel_Child<<<1, 1>>>( 
-            curNode->m_left, 
-            bMin, bMax, nAxis,
-            eye, dir, invDir,
-            meshDataPtrs
-            );
-        bMax[spAxis] = t;
-    }
-   // push right
-    if ( curNode->m_right )
-    {
-        bMin[spAxis] = s;
-        bmMarchKernel_Child<<<1, 1>>>( 
-            curNode->m_right, 
-            bMin, bMax, nAxis,
-            eye, dir, invDir,
-            meshDataPtrs
-            );
-    }
-}
-
 
 GLOBAL void bmMarchKernel(bmTreeNode* RESTRICT root, vec3 bMin, vec3 bMax,
                               const vec3* initialRays, u32 numRays,
@@ -439,7 +370,6 @@ GLOBAL void bmMarchKernel(bmTreeNode* RESTRICT root, vec3 bMin, vec3 bMax,
 {
     assert(root && initialRays && buffer && meshDataPtrs);
 
-    // lala
     u32 i = bIdx.x * bDim.x + tIdx.x;
     i = _min(i, numRays-1);
 
@@ -447,23 +377,124 @@ GLOBAL void bmMarchKernel(bmTreeNode* RESTRICT root, vec3 bMin, vec3 bMax,
     dir = orient*dir;
     vec3 invDir(1.f/dir.x, 1.f/dir.y, 1.f/dir.z);
 
-    bmMarchKernel_Child<<<1, 1>>>(
-        root, bMin, bMax,
-        eye, dir, invDir,
-        meshDataPtrs 
-        );
+//    __shared__ bmStackNode s_stack[BUILD_TREE_THREADS][TREE_SEARCH_DEPTH];
+//    bmStackNode* stack = s_stack[tIdx.x];
+
+    bmStackNode stack[TREE_SEARCH_DEPTH];
+    bmStackNode* RESTRICT st = &stack[0];
+
+    st->init( root, bMin, bMax, 0, 0 );
+    i32 top  = 0;
+    float dClosest = FLT_MAX;
+    bmFace* fClosest;
+    float tU;
+    float tV;
+
+    do
+    {
+        assert( top >= 0 );
+        st = &stack[top--];
+        bmTreeNode* curNode = st->m_node;
+        assert(st && curNode);
+
+        //if ( !curNode->m_right && !curNode->m_faces )
+        //    continue;
+
+        // check ray box intersect
+        float boxDist = bmBoxRayIntersect(st->m_min, st->m_max, eye, invDir);
+        if ( boxDist != FLT_MAX )
+        {
+            if ( !curNode->m_right && !curNode->m_left ) // is leaf
+            {
+                if ( curNode->m_faces )
+                {
+                    // check intersections ray triangle list
+                    u32 maxLoop = _min((u32)MAX_FACES_PER_BOX, curNode->m_faceInsertIdx);
+                    for ( u32 i=0; i<maxLoop; i++ )
+                    {
+                        bmFace* face = curNode->m_faces[i];
+                        float u, v;
+                        float d = bmFaceRayIntersect( face, eye, dir, meshDataPtrs, u, v );
+                        if ( d < dClosest )
+                        {
+                            dClosest = d;
+                            fClosest = face;
+                            tU = u;
+                            tV = v;
+                        }
+                    }
+                    if ( dClosest != FLT_MAX )
+                    {
+                        // if has hit, then this is always the most closest
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                assert( st );
+                assert( top+2 < TREE_SEARCH_DEPTH );
+                vec3 stMin  = st->m_min;
+                vec3 stMax  = st->m_max;
+                u32 axis    = st->m_splitAxis;
+                u32 naxis   = (axis+1)%3;
+                float s     = .5f*(stMax[axis]+stMin[axis]);
+                float p     = eye[axis] + boxDist*dir[axis];
+                if ( p < s ) // on 'left' side
+                {
+                    // push right first
+                    if ( curNode->m_right )
+                    {
+                        st = &stack[++top];
+                        float t = stMin[axis];
+                        stMin[axis] = s;
+                        st->init(curNode->m_right, stMin, stMax, naxis, 0);
+                        stMin[axis] = t; 
+                    }
+                    // push left now
+                    if ( curNode->m_left )
+                    {
+                        st = &stack[++top];
+                        stMax[axis] = s;
+                        st->init(curNode->m_left, stMin, stMax, naxis, 0);
+                    }
+                }
+                else // on 'right' side
+                {
+                    // push left first
+                    if ( curNode->m_left )
+                    {
+                        st = &stack[++top];
+                        float t = stMax[axis];
+                        stMax[axis] = s;
+                        st->init(curNode->m_left, stMin, stMax, naxis, 0);
+                        stMax[axis] = t;
+                    }
+                    // push right now
+                    if ( curNode->m_right )
+                    {
+                        st = &stack[++top]; 
+                        stMin[axis] = s;   
+                        st->init(curNode->m_right, stMin, stMax, naxis, 0);
+                    }
+                }
+            }
+        }
+    } while ( top >= 0 );
     
-    //if ( dClosest != FLT_MAX )
-    //{
-    //    assert( fClosest );
-    //    vec4 n  = bmFaceInterpolate( fClosest, tV, tU, meshDataPtrs, 1 );
-    //    vec3 nn = normalize( n );
-    //    buffer[i] = (u32)((-nn.z)*255) << 16;
-    //}
-    //else
-    //{
-    //    buffer[i] = 255<<8;
-    //}
+    if ( dClosest != FLT_MAX )
+    {
+        assert( fClosest );
+        vec4 n  = bmFaceInterpolate( fClosest, tV, tU, meshDataPtrs, 1 );
+        vec3 nn = normalize( n );
+        buffer[i] = (u32)((-nn.z)*255) << 16;
+    }
+    else
+    {
+        buffer[i] = 255<<8;
+    }
+
+ //   cudaDeviceSynchronize();
 }
 
 

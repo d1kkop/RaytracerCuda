@@ -252,7 +252,7 @@ GLOBAL void bmMarchKernelSpace( const vec3* initialRays, u32 numRays,
     vec3 p = eye;
     
     u32 maxSearchIters = MAX_SEARCH_ITERS;
-    #pragma unroll
+  //  #pragma unroll
     do
     {
         int3 cp = bmMap3 ( p );
@@ -346,4 +346,5 @@ void bmMarchSpace( const vec3* initialRays,
 extern "C"
 {
     u32 bmGetCellSize() { return sizeof(bmCell); }
+    u32 bmGetMaxHashElements() { return MAX_HASH_ELEMENTS; }
 }

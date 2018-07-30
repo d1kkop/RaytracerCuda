@@ -76,7 +76,12 @@
       <TargetMachinePlatform>64</TargetMachinePlatform>
       <Defines>
       </Defines>
+      <GenerateRelocatableDeviceCode>true</GenerateRelocatableDeviceCode>
+      <FastMath>true</FastMath>
     </CudaCompile>
+    <CudaLink>
+      <GPUDebugInfo>true</GPUDebugInfo>
+    </CudaLink>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -100,6 +105,7 @@
       <Defines>NDEBUG</Defines>
       <FastMath>true</FastMath>
     </CudaCompile>
+    <CudaLink />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">
     <ClCompile>
@@ -138,6 +144,9 @@
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="RenderTarget.h" />
     <ClInclude Include="Scene.h" />
+    <ClInclude Include="SceneHash.h" />
+    <ClInclude Include="SceneProgressive.h" />
+    <ClInclude Include="SceneTree.h" />
     <ClInclude Include="SharedTypes.h" />
     <ClInclude Include="Types.h" />
     <ClInclude Include="Util.h" />
@@ -148,7 +157,6 @@
     <CudaCompile Include="BuildTree.cu" />
     <CudaCompile Include="Gradient.cu" />
     <CudaCompile Include="Hash.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </CudaCompile>
     <CudaCompile Include="RTClear.cu" />
@@ -156,6 +164,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </CudaCompile>
+    <CudaCompile Include="Trace2.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Blob.cpp" />
@@ -165,6 +174,9 @@
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="RenderTarget.cpp" />
     <ClCompile Include="Scene.cpp" />
+    <ClCompile Include="SceneHash.cpp" />
+    <ClCompile Include="SceneProgressive.cpp" />
+    <ClCompile Include="SceneTree.cpp" />
     <ClCompile Include="Util.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

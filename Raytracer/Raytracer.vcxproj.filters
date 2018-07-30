@@ -22,6 +22,9 @@
     <Filter Include="Intern\Main\GPU">
       <UniqueIdentifier>{1edc9c88-f66a-43b6-b0ec-6cd0fb1f4ed1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Intern\Main\SceneTypes">
+      <UniqueIdentifier>{b7064853-e858-4c90-9ef7-7d618141ed97}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Beam.h" />
@@ -60,6 +63,15 @@
     <ClInclude Include="BuildTree.cuh">
       <Filter>Intern\Main\GPU</Filter>
     </ClInclude>
+    <ClInclude Include="SceneHash.h">
+      <Filter>Intern\Main\SceneTypes</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneProgressive.h">
+      <Filter>Intern\Main\SceneTypes</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneTree.h">
+      <Filter>Intern\Main\SceneTypes</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Gradient.cpp">
@@ -86,6 +98,15 @@
     <ClCompile Include="RenderTarget.cpp">
       <Filter>Intern\Main</Filter>
     </ClCompile>
+    <ClCompile Include="SceneHash.cpp">
+      <Filter>Intern\Main\SceneTypes</Filter>
+    </ClCompile>
+    <ClCompile Include="SceneProgressive.cpp">
+      <Filter>Intern\Main\SceneTypes</Filter>
+    </ClCompile>
+    <ClCompile Include="SceneTree.cpp">
+      <Filter>Intern\Main\SceneTypes</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="Gradient.cu">
@@ -107,6 +128,9 @@
       <Filter>Intern\Main\GPU</Filter>
     </CudaCompile>
     <CudaCompile Include="Hash.cu">
+      <Filter>Intern\Main\GPU</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Trace2.cu">
       <Filter>Intern\Main\GPU</Filter>
     </CudaCompile>
   </ItemGroup>

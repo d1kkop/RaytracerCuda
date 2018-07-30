@@ -1,7 +1,11 @@
 #include "Scene.h"
+#include "SceneTree.h"
+#include "SceneHash.h"
+#include "SceneProgressive.h"
 #include "Mesh.h"
 #include "SharedTypes.h"
 #include "DeviceBuffer.h"
+#include "RenderTarget.h"
 #include "BuildTree.cuh"
 #include <algorithm>
 #include <cassert>
@@ -11,89 +15,23 @@ using namespace glm;
 using namespace Beam;
 
 
-extern "C"
-{
-#if TREE
-    void bmResetScene(void* rootNode, void* faceStore,
-                      void* faceGroupStore, void* nodeStore,
-                      void* faces, void* facePtrs, void* nodes,
-                      u32 maxFaces, u32 maxFacePtrs, u32 maxNodes);
-
-    void bmInsertMeshInTree(const vec3* vertices, const u32* indices, u32 numIndices, u32 meshIdx,
-                            vec3 bMin, vec3 bMax,
-                            void* treeRootNode, void* faceStore, void* faceGroupStore, void* nodeStore, void* material);
-
-    u32 bmGetFaceSize();
-    u32 bmGetFacePtrSize();
-    u32 bmGetMaterialSize();
-    u32 bmGetNodeSize();
-    u32 bmGetFaceStoreSize();
-    u32 bmGetNodeStoreSize();
-    u32 bmGetFaceGroupStoreSize();
-#else
-    // Hash World
-    void bmResetSpace( void* cells );
-    void bmInsertMeshInSpace(const vec3* vertices,
-                             const u32* indices, u32 numIndices,
-                             void* material, u32 meshIdx,
-                             void* cells);
-    u32 bmGetCellSize();
-#endif
-}
-
-
 namespace Beam
 {
-#if TREE
-    constexpr u32 MaxNodes = (1<<16) * 64 * 4;               /* This is unrelated to max tree depth */
-    constexpr u32 MaxFaces = (1<<16) * 64 * 4;
-#else
-    constexpr u32 MaxCells = MAX_HASH_ELEMENTS; 
-#endif
-
-    // ------ IScene ----------------------------------------------------------------------------------------
-
     sptr<IScene> IScene::create()
     {
-        return make_shared<Scene>();
+    #if TREE_TYPE==TREE
+        return make_shared<SceneTree>();
+    #elif TREE_TYPE==HASH
+        return make_shared<SceneHash>();
+    #else TREE_TYPE==PROGRESSIVE
+        return make_shared<SceneProgressive>();
+    #endif
+        return nullptr;
     }
-
-    // ------ Scene ----------------------------------------------------------------------------------------
 
     Scene::Scene():
         m_mustUpdateMeshPtrs(false)
-    #if TREE
-        ,m_min(vec3(-30)),
-         m_max(vec3(30))
-    #endif
     {
-    #if TREE
-        u32 nodeSize    = MaxNodes * bmGetNodeSize();
-        u32 faceSize    = MaxFaces * bmGetFaceSize();
-        u32 facePtrSize = MaxFaces * bmGetFacePtrSize();
-        assert( nodeSize && facePtrSize && faceSize );
-
-        m_rootNode         = make_shared<DeviceBuffer>( bmGetNodeSize() );
-        m_nodeStore        = make_shared<DeviceBuffer>( bmGetNodeStoreSize() );
-        m_faceStore        = make_shared<DeviceBuffer>( bmGetFaceStoreSize() );
-        m_faceGroupStore   = make_shared<DeviceBuffer>( bmGetFaceGroupStoreSize() );
-        m_nodesBuffer      = make_shared<DeviceBuffer>( nodeSize );
-        m_facesBuffer      = make_shared<DeviceBuffer>( faceSize );
-        m_facePtrsBuffer   = make_shared<DeviceBuffer>( facePtrSize );
-
-        float nMb  = (float)m_nodesBuffer->size()/1024/1024;
-        float fMb  = (float)m_facesBuffer->size()/1024/1024;
-        float fpMb = (float)m_facePtrsBuffer->size()/1024/1024;
-        cout << "Nodes memory: " << nMb  << "mb." << endl;
-        cout << "Faces memory: " << fMb  << "mb." << endl;
-        cout << "FPtrs memory: " << fpMb << "mb." << endl;
-        cout << "Total: " << nMb+fMb+fpMb << "mb." << endl;
-    #else
-        m_cells = make_shared<DeviceBuffer>( bmGetCellSize()*MaxCells );
-        float cMb  = (float)m_cells->size()/1024/1024;
-        cout << " Cells memory: " << cMb << "mb." << endl;
-        cout << "Total: " << cMb << "mb." << endl;
-    #endif
     }
 
     void Scene::addMesh(const sptr<IMesh>& mesh)
@@ -140,58 +78,24 @@ namespace Beam
         m_mustUpdateMeshPtrs = false;
     }
 
-    void Scene::updateGPUScene()
+    u32 Scene::march(const glm::vec3& eye, const glm::mat3& orient, const sptr<DeviceBuffer>& rays, u32 raysWide, u32 raysHigh)
     {
-        updateMeshPtrs();
+        /* Get global render target */
+        auto rt = RenderTarget::get();
+        if ( !rt )
+        {
+            return ERROR_NO_RENDER_TARGET;
+        }
 
-    #if TREE
-        bmResetScene(
-           m_rootNode->ptr<void>(),
-           /* stores */
-           m_faceStore->ptr<void>(),
-           m_faceGroupStore->ptr<void>(),
-           m_nodeStore->ptr<void>(),
-            /* buffesr */
-           m_facesBuffer->ptr<void>(),
-           m_facePtrsBuffer->ptr<void>(),
-           m_nodesBuffer->ptr<void>(),
-            /* stores' _max elements */
-           MaxFaces, MaxFaces, MaxNodes );
-    #else
-        bmResetSpace( m_cells->ptr<void>() );
-    #endif
-       
-       for ( u32 i=0; i<m_staticMeshes.size(); i++ )
-       {
-           addMeshToSceneOnGPU(*m_staticMeshes[i], i );
-       }
+        /* Ensure RT and Cam have same dimensions. */
+        if ( rt->width() != raysWide || rt->height() != raysHigh )
+        {
+            return ERROR_RT_CAM_MISMATCH;
+        }
 
-   //    cudaDeviceSynchronize();
+        return ERROR_ALL_FINE;
     }
 
-    void Scene::addMeshToSceneOnGPU(const Mesh& mesh, u32 meshIdx)
-    {
-    #if TREE
-        bmInsertMeshInTree( 
-            mesh.vertexData( VERTEX_DATA_POSITION )->ptr<const vec3>(),
-            mesh.indices()->ptr<u32>(), 
-            mesh.numIndices(), 
-            meshIdx,
-            m_min, m_max, 
-            m_rootNode->ptr<void>(), 
-            m_faceStore->ptr<void>(),
-            m_faceGroupStore->ptr<void>(),
-            m_nodeStore->ptr<void>(),
-            nullptr);
-    #else
-        bmInsertMeshInSpace( 
-            mesh.vertexData(VERTEX_DATA_POSITION)->ptr<const vec3>(),
-            mesh.indices()->ptr<u32>(),
-            mesh.numIndices(),
-            nullptr,
-            meshIdx,
-            m_cells->ptr<void>());
-    #endif
-    }
+
 
 }
