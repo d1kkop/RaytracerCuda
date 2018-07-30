@@ -1,5 +1,5 @@
 #include "BuildTree.cuh"
-#include "BoxTriangle.cu"
+#include "BoxTriangle.cuh"
 
 #define NUM_RESET_THREADS 256
 #define BUILD_CELLS_THREADS BUILD_TREE_THREADS

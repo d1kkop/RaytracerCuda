@@ -14,6 +14,15 @@ namespace Beam
 
     private:
         void addMeshToSceneOnGPU( const Mesh& mesh, u32 meshIdx );
+
+        sptr<DeviceBuffer> m_rayBoxStore;
+        sptr<DeviceBuffer> m_rayBoxBuffer;
+        sptr<DeviceBuffer> m_leafStore;
+        sptr<DeviceBuffer> m_leafBuffer;
+        sptr<DeviceBuffer> m_rayFaceStore;
+        sptr<DeviceBuffer> m_rayFaceBuffer;
+        sptr<DeviceBuffer> m_faceClusters;
+        sptr<DeviceBuffer> m_hitResultClusters;
     };
 
 }

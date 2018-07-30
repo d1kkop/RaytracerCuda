@@ -61,6 +61,14 @@ float bmBoxRayIntersectNoZero(const vec3& bMin, const vec3& bMax,
 float bmBoxRayIntersect(const vec3& bMin, const vec3& bMax,
                               const vec3& orig, const vec3& invDir);
 
+__device__ inline void bmShadeNormal(u32 i, const bmRayFaceHitResult* res, const StaticMeshData* meshDataPtrs, u32* buffer)
+{
+    vec4 n = bmFaceInterpolate(res->face, res->u, res->v, meshDataPtrs, VERTEX_DATA_NORMAL);
+    n = normalize(n);
+    buffer[i] = (u32)(fabs(n.z)*255) << 16;
+
+}
+
 namespace TestProgram
 {
     Program::Program():

@@ -2,10 +2,10 @@
 using namespace Beam;
 
 
-GLOBAL void bmKernelColorGradient(unsigned int* buffer, int size)
+GLOBAL void bmKernelColorGradient(unsigned int* buffer, u32 size)
 {
 
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    u32 i = bIdx.x * bDim.x + tIdx.x;
     i = i < size ? i : 0;
 
     int blockSize = size/6;

@@ -70,7 +70,7 @@ GLOBAL void bmRayBoxKernel( bmStore<bmRayBox>* rayBoxQueue,
                             bmStore<u32>* leafQueue, 
                             bmBvhNode* bvhNodes )
 {
-    u32 i = blockIdx.x * blockDim.x + threadIdx.x;
+    u32 i = bIdx.x * bDim.x + tIdx.x;
     if ( i >= rayBoxQueue->m_max ) return;
 	bmRayBox* rb = rayBoxQueue->get(i);
     vec3 o   = rb->ray->o;
@@ -105,12 +105,12 @@ GLOBAL void bmLeafExpandKernel( bmStore<bmRayBox>* rayBoxQueue,
                                 bmBvhNode* bvhNodes,
                                 bmFaceCluster* faceClusters )
 {
-    u32 i = blockIdx.x * blockDim.x + threadIdx.x;
+    u32 i = bIdx.x * bDim.x + tIdx.x;
     if ( i >= leafQueue->m_max ) return;
 	u32 rayBoxIdx = *leafQueue->get(i);
     bmRayBox* rb = rayBoxQueue->get(rayBoxIdx);
     // It is already known that the ray intersects the leaf-box, so queue all ray/triangle tests.
-    assert( rb->isLeaf() );
+    assert( rb->node->isLeaf() );
     u32 numFaces  = rb->node->numFaces();
     bmRayFace* rf = rayFaceQueue->getNew( numFaces );
     for ( u32 k=0; k<numFaces; ++k )
@@ -128,7 +128,7 @@ GLOBAL void bmFaceTestKernel( bmRay* rays,
                               StaticMeshData* meshDataPtrs )
 
 {
-    u32 i = blockIdx.x * blockDim.x + threadIdx.x;
+    u32 i = bIdx.x * bDim.x + tIdx.x;
     if ( i >= rayFaceQueue->m_max ) return;
 	bmRayFace* rf = rayFaceQueue->get(i);
     vec3 o  = rf->ray->o;
@@ -157,7 +157,7 @@ GLOBAL void bmFindClosestHit( bmRayFaceHitCluster* hitResultClusters, u32 numRay
                               bmHitCallback cb )
 
 {
-    u32 i = blockIdx.x * blockDim.x + threadIdx.x;
+    u32 i = bIdx.x * bDim.x + tIdx.x;
     if ( i >= numRays ) return;
 	bmRayFaceHitCluster* hitCluster = hitResultClusters + i;
     u32 count = _min( hitCluster->count, (u32)MAX_HITS_PER_RAY );
@@ -175,15 +175,15 @@ GLOBAL void bmFindClosestHit( bmRayFaceHitCluster* hitResultClusters, u32 numRay
     cb( i, rf, meshDataPtrs, buffer );
 }
 
-
-DEVICE void bmShadeNormal(u32 i, const bmRayFaceHitResult* res, const StaticMeshData* meshDataPtrs, u32* buffer)
-{
-    vec4 n = bmFaceInterpolate( res->face, res->u, res->v, meshDataPtrs, VERTEX_DATA_NORMAL );
-    n = normalize(n);
-    buffer[i] = (u32)(fabs(n.z)*255) << 16;
-
-}
-
+//
+//DEVICE void bmShadeNormal(u32 i, const bmRayFaceHitResult* res, const StaticMeshData* meshDataPtrs, u32* buffer)
+//{
+//    vec4 n = bmFaceInterpolate( res->face, res->u, res->v, meshDataPtrs, VERTEX_DATA_NORMAL );
+//    n = normalize(n);
+//    buffer[i] = (u32)(fabs(n.z)*255) << 16;
+//
+//}
+//
 
 extern "C"
 void bmMarchProgressive(void* rays, u32 numRays, 
@@ -201,13 +201,13 @@ void bmMarchProgressive(void* rays, u32 numRays,
 
 #if CUDA
 
-    bmFindClosestHit<<< 1, 1 >>> (
-        nullptr, 
-        0, 
-        nullptr,
-        nullptr,
-        &bmShadeNormal
-        );
+    //bmFindClosestHit<<< 1, 1 >>> (
+    //    nullptr, 
+    //    0, 
+    //    nullptr,
+    //    nullptr,
+    //    &bmShadeNormal
+    //    );
 
 #else
    
@@ -217,5 +217,12 @@ void bmMarchProgressive(void* rays, u32 numRays,
 
 extern "C"
 {
+    u32 bmGetFaceClusterSize() { return sizeof(bmFaceCluster); }
+    u32 bmGetBvhNodeSize() { return sizeof(bmBvhNode); }
+    u32 bmGetRaySize() { return sizeof(bmRay); }
+    u32 bmGetRayBoxSize() { return sizeof(bmRayBox); }
+    u32 bmGetRayFaceSize() { return sizeof(bmRayFace); }
+    u32 bmRayFaceHitClusterSize() { return sizeof(bmRayFaceHitCluster); }
 
+    u32 bmGetStoreSize() { return sizeof(bmStore<void>); }
 }

@@ -50,9 +50,6 @@
     <ClInclude Include="Util.h">
       <Filter>Intern\Util</Filter>
     </ClInclude>
-    <ClInclude Include="CudaComon.cuh">
-      <Filter>Cuda</Filter>
-    </ClInclude>
     <ClInclude Include="RenderTarget.h">
       <Filter>Intern\Main</Filter>
     </ClInclude>
@@ -60,9 +57,6 @@
       <Filter>Intern\Util</Filter>
     </ClInclude>
     <ClInclude Include="GLinterop.h" />
-    <ClInclude Include="BuildTree.cuh">
-      <Filter>Intern\Main\GPU</Filter>
-    </ClInclude>
     <ClInclude Include="SceneHash.h">
       <Filter>Intern\Main\SceneTypes</Filter>
     </ClInclude>
@@ -121,9 +115,6 @@
     <CudaCompile Include="BuildTree.cu">
       <Filter>Intern\Main\GPU</Filter>
     </CudaCompile>
-    <CudaCompile Include="BoxTriangle.cu">
-      <Filter>Intern\Main\GPU</Filter>
-    </CudaCompile>
     <CudaCompile Include="RTClear.cu">
       <Filter>Intern\Main\GPU</Filter>
     </CudaCompile>
@@ -131,6 +122,15 @@
       <Filter>Intern\Main\GPU</Filter>
     </CudaCompile>
     <CudaCompile Include="Trace2.cu">
+      <Filter>Intern\Main\GPU</Filter>
+    </CudaCompile>
+    <CudaCompile Include="BuildTree.cuh">
+      <Filter>Intern\Main\GPU</Filter>
+    </CudaCompile>
+    <CudaCompile Include="CudaComon.cuh">
+      <Filter>Cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="BoxTriangle.cuh">
       <Filter>Intern\Main\GPU</Filter>
     </CudaCompile>
   </ItemGroup>

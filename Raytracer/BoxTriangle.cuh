@@ -130,94 +130,93 @@ int planeBoxOverlap(float normal[3], float vert[3], float maxbox[3])	// -NJMP-
 	rad = fa * boxhalfsize[X] + fb * boxhalfsize[Y];   \
 	if(_min>rad || _max<-rad) return 0;
 
+
 extern "C"
 FDEVICE
-int triBoxOverlap(float* boxcenter,float* boxhalfsize,vec3 triverts[3])
+    int triBoxOverlap(float* boxcenter, float* boxhalfsize, vec3 triverts[3])
 {
-  /*    use separating axis theorem to test overlap between triangle and box */
-  /*    need to test for overlap in these directions: */
-  /*    1) the {x,y,z}-directions (actually, since we use the AABB of the triangle */
-  /*       we do not even need to test these) */
-  /*    2) normal of the triangle */
-  /*    3) crossproduct(edge from tri, {x,y,z}-directin) */
-  /*       this gives 3x3=9 more tests */
+    /*    use separating axis theorem to test overlap between triangle and box */
+    /*    need to test for overlap in these directions: */
+    /*    1) the {x,y,z}-directions (actually, since we use the AABB of the triangle */
+    /*       we do not even need to test these) */
+    /*    2) normal of the triangle */
+    /*    3) crossproduct(edge from tri, {x,y,z}-directin) */
+    /*       this gives 3x3=9 more tests */
 
-   float v0[3],v1[3],v2[3];
-//   float axis[3];
-   float _min,_max,p0,p1,p2,rad,fex,fey,fez;		// -NJMP- "d" local variable removed
-   float normal[3],e0[3],e1[3],e2[3];
+    float v0[3], v1[3], v2[3];
+    //   float axis[3];
+    float _min, _max, p0, p1, p2, rad, fex, fey, fez;		// -NJMP- "d" local variable removed
+    float normal[3], e0[3], e1[3], e2[3];
 
-   /* This is the fastest branch on Sun */
-   /* move everything so that the boxcenter is in (0,0,0) */
+    /* This is the fastest branch on Sun */
+    /* move everything so that the boxcenter is in (0,0,0) */
 
-   SUB(v0,triverts[0],boxcenter);
-   SUB(v1,triverts[1],boxcenter);
-   SUB(v2,triverts[2],boxcenter);
+    SUB(v0, triverts[0], boxcenter);
+    SUB(v1, triverts[1], boxcenter);
+    SUB(v2, triverts[2], boxcenter);
 
-   /* compute triangle edges */
+    /* compute triangle edges */
 
-   SUB(e0,v1,v0);      /* tri edge 0 */
-   SUB(e1,v2,v1);      /* tri edge 1 */
-   SUB(e2,v0,v2);      /* tri edge 2 */
+    SUB(e0, v1, v0);      /* tri edge 0 */
+    SUB(e1, v2, v1);      /* tri edge 1 */
+    SUB(e2, v0, v2);      /* tri edge 2 */
 
-   /* Bullet 3:  */
-   /*  test the 9 tests first (this was faster) */
+    /* Bullet 3:  */
+    /*  test the 9 tests first (this was faster) */
 
-   fex = fabsf(e0[X]);
-   fey = fabsf(e0[Y]);
-   fez = fabsf(e0[Z]);
+    fex = fabsf(e0[X]);
+    fey = fabsf(e0[Y]);
+    fez = fabsf(e0[Z]);
 
-   AXISTEST_X01(e0[Z], e0[Y], fez, fey);
-   AXISTEST_Y02(e0[Z], e0[X], fez, fex);
-   AXISTEST_Z12(e0[Y], e0[X], fey, fex);
+    AXISTEST_X01(e0[Z], e0[Y], fez, fey);
+    AXISTEST_Y02(e0[Z], e0[X], fez, fex);
+    AXISTEST_Z12(e0[Y], e0[X], fey, fex);
 
-   fex = fabsf(e1[X]);
-   fey = fabsf(e1[Y]);
-   fez = fabsf(e1[Z]);
+    fex = fabsf(e1[X]);
+    fey = fabsf(e1[Y]);
+    fez = fabsf(e1[Z]);
 
-   AXISTEST_X01(e1[Z], e1[Y], fez, fey);
-   AXISTEST_Y02(e1[Z], e1[X], fez, fex);
-   AXISTEST_Z0(e1[Y], e1[X], fey, fex);
+    AXISTEST_X01(e1[Z], e1[Y], fez, fey);
+    AXISTEST_Y02(e1[Z], e1[X], fez, fex);
+    AXISTEST_Z0(e1[Y], e1[X], fey, fex);
 
-   fex = fabsf(e2[X]);
-   fey = fabsf(e2[Y]);
-   fez = fabsf(e2[Z]);
-   AXISTEST_X2(e2[Z], e2[Y], fez, fey);
-   AXISTEST_Y1(e2[Z], e2[X], fez, fex);
-   AXISTEST_Z12(e2[Y], e2[X], fey, fex);
+    fex = fabsf(e2[X]);
+    fey = fabsf(e2[Y]);
+    fez = fabsf(e2[Z]);
+    AXISTEST_X2(e2[Z], e2[Y], fez, fey);
+    AXISTEST_Y1(e2[Z], e2[X], fez, fex);
+    AXISTEST_Z12(e2[Y], e2[X], fey, fex);
 
-   /* Bullet 1: */
-   /*  first test overlap in the {x,y,z}-directions */
-   /*  find _min, _max of the triangle each direction, and test for overlap in */
-   /*  that direction -- this is equivalent to testing a minimal AABB around */
-   /*  the triangle against the AABB */
+    /* Bullet 1: */
+    /*  first test overlap in the {x,y,z}-directions */
+    /*  find _min, _max of the triangle each direction, and test for overlap in */
+    /*  that direction -- this is equivalent to testing a minimal AABB around */
+    /*  the triangle against the AABB */
 
-   /* test in X-direction */
+    /* test in X-direction */
 
-   FINDMINMAX(v0[X],v1[X],v2[X],_min,_max);
-   if(_min>boxhalfsize[X] || _max<-boxhalfsize[X]) return 0;
+    FINDMINMAX(v0[X], v1[X], v2[X], _min, _max);
+    if ( _min>boxhalfsize[X] || _max<-boxhalfsize[X] ) return 0;
 
-   /* test in Y-direction */
+    /* test in Y-direction */
 
-   FINDMINMAX(v0[Y],v1[Y],v2[Y],_min,_max);
-   if(_min>boxhalfsize[Y] || _max<-boxhalfsize[Y]) return 0;
+    FINDMINMAX(v0[Y], v1[Y], v2[Y], _min, _max);
+    if ( _min>boxhalfsize[Y] || _max<-boxhalfsize[Y] ) return 0;
 
-   /* test in Z-direction */
+    /* test in Z-direction */
 
-   FINDMINMAX(v0[Z],v1[Z],v2[Z],_min,_max);
-   if(_min>boxhalfsize[Z] || _max<-boxhalfsize[Z]) return 0;
+    FINDMINMAX(v0[Z], v1[Z], v2[Z], _min, _max);
+    if ( _min>boxhalfsize[Z] || _max<-boxhalfsize[Z] ) return 0;
 
-   /* Bullet 2: */
-   /*  test if the box intersects the plane of the triangle */
-   /*  compute plane equation of triangle: normal*x+d=0 */
+    /* Bullet 2: */
+    /*  test if the box intersects the plane of the triangle */
+    /*  compute plane equation of triangle: normal*x+d=0 */
 
-   CROSS(normal,e0,e1);
+    CROSS(normal, e0, e1);
 
-   // -NJMP- (line removed here)
+    // -NJMP- (line removed here)
 
-   if(!planeBoxOverlap(normal,v0,boxhalfsize)) return 0;	// -NJMP-
+    if ( !planeBoxOverlap(normal, v0, boxhalfsize) ) return 0;	// -NJMP-
 
-   return 1;   /* box and triangle overlaps */
+    return 1;   /* box and triangle overlaps */
 }
-
-

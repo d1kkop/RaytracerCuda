@@ -5,12 +5,12 @@
 #include <map>
 
 
-#define CUDA 0
+#define CUDA 1
 
 #define TREE                1
 #define HASH                2
 #define PROGRESSIVE         3
-#define TREE_TYPE           TREE
+#define TREE_TYPE          TREE
 
 
 namespace Beam

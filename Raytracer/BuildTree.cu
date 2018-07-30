@@ -1,7 +1,8 @@
 #include "BuildTree.cuh"
-#include "BoxTriangle.cu"
+#include "BoxTriangle.cuh"
 
 // -------- bmTreeNode -----------------------------------------------------------------------------------------------------------
+
 
 FDEVICE void bmTreeNode::split(bmStore<bmTreeNode>* store)
 {

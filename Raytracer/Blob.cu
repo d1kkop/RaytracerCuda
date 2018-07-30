@@ -26,8 +26,8 @@ FDEVICE vec2 rotate2(vec2 v, float ang)
 
 GLOBAL void bmKernelBlob(u32* buffer, u32 w, u32 h, float time)
 {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int size = w*h;
+    u32 i = bIdx.x * bDim.x + tIdx.x;
+    u32 size = w*h;
     i = _min(i,size);
 
     // vec2 uv = vec2( (i%w) - (w/2), (i/w) - (h/2) );

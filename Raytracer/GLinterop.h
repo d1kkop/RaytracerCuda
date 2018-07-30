@@ -169,7 +169,7 @@ namespace Beam
                 glEnableVertexAttribArray(0);
             }
 
-            // As little fragment processing as possible
+            // As little fixed-function processing as possible
             glDisable(GL_CULL_FACE);
             glDisable(GL_DEPTH_TEST);
             glDisable(GL_ALPHA_TEST);
