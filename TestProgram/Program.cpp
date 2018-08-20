@@ -63,7 +63,7 @@ float bmBoxRayIntersect(const vec3& bMin, const vec3& bMax,
 
 __device__ inline void bmShadeNormal(u32 i, const bmRayFaceHitResult* res, const StaticMeshData* meshDataPtrs, u32* buffer)
 {
-    vec4 n = bmFaceInterpolate(res->face, res->u, res->v, meshDataPtrs, VERTEX_DATA_NORMAL);
+    vec3 n = bmFaceInterpolate<vec3>(res->face, res->u, res->v, meshDataPtrs, VERTEX_DATA_NORMAL);
     n = normalize(n);
     buffer[i] = (u32)(fabs(n.z)*255) << 16;
 
@@ -270,6 +270,7 @@ namespace TestProgram
         m_renderer  = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
         m_glContext = SDL_GL_CreateContext(m_window);
         SDL_CALL(SDL_GL_MakeCurrent(m_window, m_glContext));
+        SDL_CALL(SDL_SetRelativeMouseMode(SDL_TRUE));
     }
 
     void Program::closeSDL()

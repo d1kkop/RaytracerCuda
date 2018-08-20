@@ -139,14 +139,19 @@ float bmTriIntersect( const vec3 &orig, const vec3 &dir,
 
     float invDet = 1.f/det;
     vec3 tvec = orig - v0; 
-    vec3 qvec = cross(tvec, v0v1); 
     u = dot(tvec, pvec) * invDet; 
-    v = dot(dir, qvec) * invDet; 
- //   float dist = dot(v0v2, qvec) * invDet;
+    if ( u<0||u>1 ) return FLT_MAX;
 
-    return ( u<0||u>1 ? FLT_MAX : 
+    vec3 qvec = cross(tvec, v0v1); 
+    v = dot(dir, qvec) * invDet; 
+    if ( v<0||v+u>1 ) return FLT_MAX;
+
+    float dist = (dot(v0v2, qvec)*invDet);
+    return dist;
+
+    /*return ( u<0||u>1 ? FLT_MAX : 
             ( v<0||v+u>1 ? FLT_MAX : 
-             ( dot(v0v2, qvec)*invDet) ));
+             ( dot(v0v2, qvec)*invDet) ));*/
 } 
 
 // https://tavianator.com/fast-branchless-raybounding-box-intersections/
@@ -245,37 +250,19 @@ FDEVICE INLINE float bmFaceRayIntersect(bmFace* face, const vec3& eye, const vec
     return bmTriIntersect( eye, dir, vp[idx.x], vp[idx.y], vp[idx.z], u, v );
 }
 
-FDEVICE INLINE vec4 bmFaceInterpolate(bmFace* face, float u, float v, const StaticMeshData* meshDataPtrs, u32 dataIdx)
+template <class T>
+FDEVICE INLINE T bmFaceInterpolate(bmFace* face, float u, float v, const StaticMeshData* meshDataPtrs, u32 dataIdx)
 {
     assert( meshDataPtrs );
     assert( dataIdx < VERTEX_DATA_COUNT );
     uint4 idx = face->m_index;
     const StaticMeshData* mesh = &meshDataPtrs[idx.w];
-    float* vd = mesh->m_vertexData[ dataIdx ];
-    u32 dsize = mesh->m_vertexDataSizes[ dataIdx ];
-    assert( dsize > 0 && dsize < 4 );
-    float* vd1 = vd + idx.x*dsize;
-    float* vd2 = vd + idx.y*dsize;
-    float* vd3 = vd + idx.z*dsize;
+    const T* vd = (const T*)mesh->m_vertexData[ dataIdx ];
+    const T& vd1 = vd[idx.x];
+    const T& vd2 = vd[idx.y];
+    const T& vd3 = vd[idx.z];
     float w = 1-(u+v);
-    switch ( dsize )
-    {
-    case 1:
-        return vec4(vd1[0]*u + vd2[0]*v + vd3[0]*w, 0.f, 0.f, 0.f);
-    case 2:
-        return vec4(vd1[0]*u + vd2[0]*v + vd3[0]*w, 
-                    vd1[1]*u + vd2[1]*v + vd3[1]*w, 0.f, 0.f);
-    case 3:
-        return vec4(vd1[0]*u + vd2[0]*w + vd3[0]*w, 
-                    vd1[1]*u + vd2[1]*w + vd3[1]*w,
-                    vd1[2]*u + vd2[2]*w + vd3[2]*w, 0.f);
-    case 4:
-        return vec4(vd1[0]*u + vd2[0]*v + vd3[0]*w, 
-                    vd1[1]*u + vd2[1]*v + vd3[1]*w,
-                    vd1[2]*u + vd2[2]*v + vd3[2]*w,
-                    vd1[3]*u + vd2[3]*v + vd3[3]*w);
-    }
-    return vec4(0.f);
+    return vd1*w + vd2*u + vd3*v;
 }
 
 template <typename T>

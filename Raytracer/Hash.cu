@@ -291,8 +291,7 @@ GLOBAL void bmMarchKernelSpace( const vec3* initialRays, u32 numRays,
     if ( dClosest != FLT_MAX )
     {
         assert( fClosest );
-        vec4 n = bmFaceInterpolate( fClosest, tU, tV, meshDataPtrs, 1 );
-        n.w = 0.f;
+        vec3 n = bmFaceInterpolate<vec3>( fClosest, tU, tV, meshDataPtrs, 1 );
         n = normalize( n );
         buffer[i] = (u32)(fabs(n.z)*255) << 16;
     }
